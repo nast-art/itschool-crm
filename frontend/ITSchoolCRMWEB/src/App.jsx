@@ -11,6 +11,14 @@ import DashboardPage from './pages/DashboardPage.jsx'
 import InteractionsPage from './pages/InteractionsPage.jsx'
 import UniversitiesPage from './pages/UniversitiesPage.jsx'
 import DirectionsPage from './pages/DirectionsPage.jsx'
+import ReportsPage from './pages/ReportsPage.jsx'
+import VisualizationPage from './pages/VisualizationPage.jsx'
+import DocumentationPage from './pages/DocumentationPage.jsx'
+import IntegrationsPage from './pages/IntegrationsPage.jsx'
+import WorkflowsPage from './pages/WorkflowsPage.jsx'
+import ContractsPage from './pages/ContractsPage.jsx'
+import ResponsiblesPage from './pages/ResponsiblesPage.jsx'
+import UsersAccessPage from './pages/UsersAccessPage.jsx'
 
 const AuthContext = createContext(null)
 
@@ -117,68 +125,103 @@ export default function App() {
           }
         />
 
-        <Route
-          path="/responsibles"
-          element={
-            <ProtectedRoute>
-              <Shell title="Ответственные">
-                <StubPage title="Ответственные" description="Менеджеры (КАМ) и контакты вузов." />
-              </Shell>
-            </ProtectedRoute>
-          }
-        />
+   <Route
+  path="/responsibles"
+  element={
+    <ProtectedRoute>
+      <Shell title="Ответственные">
+        <ResponsiblesPage />
+      </Shell>
+    </ProtectedRoute>
+  }
+/>
 
-        <Route
-          path="/contracts"
-          element={
-            <ProtectedRoute>
-              <Shell title="Договоры">
-                <StubPage title="Договоры" description="Договоры и лицензии по вузам." />
-              </Shell>
-            </ProtectedRoute>
-          }
-        />
+       {/* Раздел «Договоры» — реестр договоров с вузами.
+Доступен всем авторизованным; кнопки добавления/редактирования
+внутри страницы видны только manager/admin (п. 11 ТЗ), отказ
+сервера — 403 ERR_FORBIDDEN. */}
+<Route
+  path="/contracts"
+  element={
+    <ProtectedRoute>
+      <Shell title="Договоры">
+        <ContractsPage />
+      </Shell>
+    </ProtectedRoute>
+  }
+/>
 
-        <Route
-          path="/reports"
-          element={
-            <ProtectedRoute>
-              <Shell title="Отчёты">
-                <StubPage title="Отчёты" description="Формирование отчётов за период в форматах xls, xlsx, pdf." />
-              </Shell>
-            </ProtectedRoute>
-          }
-        />
+       <Route
+  path="/reports"
+  element={
+    <ProtectedRoute>
+      <Shell title="Отчёты">
+        <ReportsPage />
+      </Shell>
+    </ProtectedRoute>
+  }
+/>
 
+            {/* Страница «Визуализация» — полноценная реализация по макету
+            (заглушка заменена на VisualizationPage) */}
         <Route
           path="/visualization"
           element={
             <ProtectedRoute>
               <Shell title="Визуализация">
-                <StubPage title="Визуализация" description="Диаграммы и графики по данным CRM." />
+                <VisualizationPage />
               </Shell>
             </ProtectedRoute>
           }
         />
 
-        <Route
-          path="/docs"
-          element={
-            <ProtectedRoute>
-              <Shell title="Документация">
-                <StubPage title="Документация" description="Руководство пользователя и системного администратора." />
-              </Shell>
-            </ProtectedRoute>
-          }
-        />
+       <Route
+  path="/docs"
+  element={
+    <ProtectedRoute>
+      <Shell title="Документация">
+        <DocumentationPage />
+      </Shell>
+    </ProtectedRoute>
+  }
+/>
 
-        <Route
-          path="/system"
+     <Route
+  path="/system"
+  element={
+    <ProtectedRoute>
+      <AdminRoute>
+        <Shell title="Система">
+          <UsersAccessPage />
+        </Shell>
+      </AdminRoute>
+    </ProtectedRoute>
+  }
+/>
+
+          {/* Раздел «Интеграции API» — только для администраторов
+              (п. 11 ТЗ). Полная реализация по макету и требованию 5 ТЗ:
+              двухсторонний обмен JSON с LMS и веб-сайтом. */}
+          <Route
+            path="/system/integrations"
+            element={
+              <ProtectedRoute>
+                <AdminRoute>
+                  <Shell title="Интеграции API">
+                    <IntegrationsPage />
+                  </Shell>
+                </AdminRoute>
+              </ProtectedRoute>
+            }
+          />
+
+            <Route
+          path="/system/workflows"
           element={
             <ProtectedRoute>
               <AdminRoute>
-                <Shell title="Система">
-                  <StubPage title="Система" description="Пользователи и права доступа, интеграции API." />
+                <Shell title="Workflow">
+                  <WorkflowsPage />
                 </Shell>
               </AdminRoute>
             </ProtectedRoute>

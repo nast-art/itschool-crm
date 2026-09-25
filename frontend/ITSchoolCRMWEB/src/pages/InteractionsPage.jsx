@@ -1,36 +1,36 @@
 // Страница «Взаимодействия» — карта workflow по взаимодействию с вузом.
 // Состав по макету:
-//   1. Фильтры: Период, Вуз, ИТ-направление, ИТ-продукт, Ответственный
-//      (фильтр «Ответственный» — только для руководителя и администратора).
-//      Поддерживается вход с параметром ?direction={id} — применяет фильтр
-//      по направлению (переход «Открыть workflow» со страницы ИТ-направлений).
-//   2. Список взаимодействий (бэкенд отдаёт ТОЛЬКО доступные по
-//      university_managers), пагинация по 6 карточек, пейджер
-//      «‹ Страница 5 из 9 ›» с ручным вводом номера.
-//   3. Карта этапов workflow с прогрессом и подсказками-датами.
-//   4. Перевод статуса с комментарием.
-//   5. Комментарии пользователей: добавление + просмотр ленты.
-//   6. Файлы: drag&drop, привязка к этапу (по умолчанию шаг 1), скачивание,
-//      удаление. Кнопка удаления показывается всегда — фактическое право
-//      (владелец / руководитель / админ) проверяет бэкенд; при отказе
-//      возвращается 403 ERR_FORBIDDEN с сообщением.
-//   7. «Редактировать» и «Добавить статус» — только для admin.
-//
-// Контракт с бэкендом (ITSchoolCRM.API):
-//   GET  /Interactions                  — список (уже отфильтрован по доступу)
-//   GET  /Interactions/{id}             — базовый DTO
-//   GET  /Interactions/{id}/history     — история (комментарии, даты этапов)
-//   PUT  /Interactions/{id}             — редактирование карточки (admin)
-//   POST /Interactions/{id}/status      — { toStatusId, comment? }
-//   POST /Interactions/{id}/comments    — { comment, statusId? }
-//   GET  /Attachments/interaction/{id}  — вложения
-//   POST /Attachments/interaction/{id}/status/{statusId} — multipart
-//   GET  /Attachments/{id}/download     — скачивание
-//   DELETE /Attachments/{id}            — удаление (право решает бэкенд)
-//   GET  /Workflows/{id}                — { id, name, statuses[],
-//                                         transitions[] }
-//   POST /Workflows/{id}/statuses       — новый этап (admin)
-//   GET  /Users                         — для фильтра «Ответственный»
+// 1. Фильтры: Период, Вуз, ИТ-направление, ИТ-продукт, Ответственный
+// (фильтр «Ответственный» — только для руководителя и администратора).
+// Поддерживается вход с параметрами:
+//   ?direction={id}   — фильтр по ИТ-направлению (кнопка «Открыть workflow»
+//                       со страницы ИТ-направлений);
+//   ?focus={id}       — выбор КОНКРЕТНОГО взаимодействия (клик по
+//                       уведомлению о зависшей заявке в колокольчике).
+//                       Механика: параметр забирает эффект, зависящий от
+//                       [searchParams] (в SPA переход по ссылке из
+//                       уведомления НЕ пересоздаёт компонент — эффект
+//                       с [] не сработал бы повторно). Id кладётся в
+//                       STATE pendingFocusId (не ref: изменение ref
+//                       рендер не вызывает, и применяющий эффект не
+//                       перезапускался бы). Применяющий эффект ждёт
+//                       [pendingFocusId, filtered, listLoading] —
+//                       строго после объявления filtered/safePage,
+//                       иначе TDZ-ошибка. Focus переводит пагинацию
+//                       на СТРАНИЦУ, где лежит карточка (по 6 на
+//                       страницу): без перехода карточка не рендерится.
+// 2. Список взаимодействий (бэкенд отдаёт ТОЛЬКО доступные по
+// university_managers), пагинация по 6 карточек, пейджер
+// «‹ Страница 5 из 9 ›» с ручным вводом номера.
+// 3. Карта этапов workflow с прогрессом и подсказками-датами.
+// 4. Перевод статуса с комментарием.
+// 5. Комментарии пользователей: добавление + просмотр ленты.
+// 6. Файлы: drag&drop, привязка к этапу (по умолчанию шаг 1), скачивание,
+// удаление. Кнопка удаления показывается всегда — фактическое право
+// (владелец / руководитель / админ) проверяет бэкенд; при отказе
+// возвращается 403 ERR_FORBIDDEN с сообщением.
+// 7. «Редактировать» и «Добавить статус» — только для admin.
+
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { api } from '../api/client'
@@ -47,14 +47,10 @@ import {
   IconUpload,
 } from '../components/icons.jsx'
 
-// ---------- Константы ----------
-
-const PAGE_SIZE = 6 // сетка 3×2, как на макете
-
-// Допустимые форматы вложений (п. 3 функциональных требований ТЗ)
+const PAGE_SIZE = 6
 const ALLOWED_EXTENSIONS = ['png', 'jpg', 'jpeg', 'pdf', 'zip', 'gz', 'gzip', 'rar', 'doc', 'docx', 'xls', 'xlsx']
 const ACCEPT_ATTRIBUTE = '.png,.jpg,.jpeg,.pdf,.zip,.gz,.gzip,.rar,.doc,.docx,.xls,.xlsx'
-const MAX_FILE_SIZE = 20 * 1024 * 1024 // 20 МБ на файл
+const MAX_FILE_SIZE = 20 * 1024 * 1024
 
 const PERIODS = [
   { id: 'all', label: 'Все время' },
@@ -67,28 +63,19 @@ const PERIODS = [
 function periodStart(id) {
   if (id === 'all') return null
   const now = new Date()
-
   if (id === 'week') {
     const mondayOffset = (now.getDay() + 6) % 7
     return new Date(now.getFullYear(), now.getMonth(), now.getDate() - mondayOffset)
   }
-  if (id === 'month') {
-    return new Date(now.getFullYear(), now.getMonth(), 1)
-  }
+  if (id === 'month') return new Date(now.getFullYear(), now.getMonth(), 1)
   if (id === 'quarter') {
     const quarterFirstMonth = Math.floor(now.getMonth() / 3) * 3
     return new Date(now.getFullYear(), quarterFirstMonth, 1)
   }
-  if (id === 'year') {
-    return new Date(now.getFullYear(), 0, 1)
-  }
+  if (id === 'year') return new Date(now.getFullYear(), 0, 1)
   return null
 }
 
-// ---------- Форматирование ----------
-
-// Время приходит в UTC без суффикса Z (timestamp without time zone) —
-// дописываем Z, чтобы браузер сделал сдвиг пояса
 function asDate(iso) {
   if (!iso) return null
   const s =
@@ -138,11 +125,9 @@ function validateFile(file) {
 function statusToneClass(status) {
   if (!status) return 'status-badge'
   if (status.isFinal) return 'status-badge is-final'
-  const tone = (Math.max(1, status.sortOrder) - 1) % 6 + 1
+  const tone = ((Math.max(1, status.sortOrder) - 1) % 6) + 1
   return `status-badge tone-${tone}`
 }
-
-// ---------- Мелкие компоненты ----------
 
 function FilterSelect({ label, value, onChange, options, placeholder = 'Все' }) {
   return (
@@ -160,58 +145,47 @@ function FilterSelect({ label, value, onChange, options, placeholder = 'Все' 
   )
 }
 
-// ---------- Главный компонент ----------
-
 export default function InteractionsPage() {
   const { user } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
 
-  // Роли — только для управления интерфейсом (данные фильтрует бэкенд)
   const roles = user?.roles ?? []
   const isAdmin = roles.includes('admin')
   const isPrivileged = isAdmin || roles.includes('manager')
 
-  // Справочники
   const [universities, setUniversities] = useState([])
   const [directions, setDirections] = useState([])
   const [programs, setPrograms] = useState([])
   const [products, setProducts] = useState([])
   const [users, setUsers] = useState([])
 
-  // Фильтры
   const [period, setPeriod] = useState('all')
   const [fUniversity, setFUniversity] = useState('')
   const [fDirection, setFDirection] = useState('')
   const [fProduct, setFProduct] = useState('')
   const [fManager, setFManager] = useState('')
 
-  // Пагинация
   const [page, setPage] = useState(1)
   const [pageInput, setPageInput] = useState('1')
 
-  // Список и выбранное
   const [interactions, setInteractions] = useState([])
   const [listLoading, setListLoading] = useState(true)
   const [selectedId, setSelectedId] = useState(null)
 
-  // Детали
   const [detail, setDetail] = useState(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [workflow, setWorkflow] = useState(null)
 
-  // Перевод статуса
   const [targetStatusId, setTargetStatusId] = useState('')
   const [transitionComment, setTransitionComment] = useState('')
   const [transitionPending, setTransitionPending] = useState(false)
   const [transitionError, setTransitionError] = useState('')
 
-  // Комментарии
   const [commentText, setCommentText] = useState('')
   const [commentStatusId, setCommentStatusId] = useState('')
   const [commentPending, setCommentPending] = useState(false)
   const [commentError, setCommentError] = useState('')
 
-  // Файлы
   const [selectedFile, setSelectedFile] = useState(null)
   const [attachStatusId, setAttachStatusId] = useState('')
   const [dragOver, setDragOver] = useState(false)
@@ -220,7 +194,6 @@ export default function InteractionsPage() {
   const [fileBusyId, setFileBusyId] = useState(null)
   const fileInputRef = useRef(null)
 
-  // Модалки (admin)
   const [editOpen, setEditOpen] = useState(false)
   const [editPending, setEditPending] = useState(false)
   const [editError, setEditError] = useState('')
@@ -244,21 +217,43 @@ export default function InteractionsPage() {
 
   const [pageError, setPageError] = useState('')
 
-  // ---------- Переход «Открыть workflow» со страницы ИТ-направлений:
-  // применяем фильтр по направлению из URL-параметра ----------
+  // ---------- Переходы извне ----------
+  // pendingFocusId — id взаимодействия из ?focus= (уведомление).
+  // Именно STATE, а не ref: изменение ref рендер не вызывает, и при
+  // переходе из уведомления внутри SPA (компонент уже смонтирован,
+  // список давно загружен, filtered/listLoading не меняются)
+  // применяющий эффект не перезапускался — focus «зависал» в ref.
+  // State меняется → рендер → эффект [pendingFocusId, filtered,
+  // listLoading] отрабатывает в любом сценарии.
+  // scrollToCardRef — флаг «нужно прокрутить к выбранной карточке»
+  // (взводится при применении focus, гасится после прокрутки —
+  // обычные клики по карточкам скролл страницы не дёргают).
+  const [pendingFocusId, setPendingFocusId] = useState(null)
+  const scrollToCardRef = useRef(false)
+
+  // Приём параметров из URL: ?direction={id} — фильтр по направлению
+  // (кнопка «Открыть workflow» со страницы ИТ-направлений),
+  // ?focus={id} — выбор конкретного взаимодействия (уведомление).
+  // Зависимость от searchParams ОБЯЗАТЕЛЬНА: в SPA переход по ссылке
+  // из уведомления с уже открытой страницы «Взаимодействия» НЕ
+  // пересоздаёт компонент — эффект с [] не сработал бы повторно,
+  // параметр остался бы в URL, а focus не применился бы.
   useEffect(() => {
     const directionId = searchParams.get('direction')
+    const focusId = searchParams.get('focus')
+
     if (directionId) {
       setFDirection(directionId)
-      // Убираем параметр из URL, чтобы фильтр не «залипал»
-      // при обычной навигации на страницу
+    }
+    if (focusId) {
+      setPendingFocusId(Number(focusId))
+    }
+    if (directionId || focusId) {
       searchParams.delete('direction')
+      searchParams.delete('focus')
       setSearchParams(searchParams, { replace: true })
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  // ---------- Справочники (один раз) ----------
+  }, [searchParams, setSearchParams])
 
   useEffect(() => {
     Promise.all([
@@ -280,8 +275,6 @@ export default function InteractionsPage() {
       .catch(() => setUsers([]))
   }, [])
 
-  // ---------- Список взаимодействий ----------
-
   function loadInteractions() {
     setListLoading(true)
     return api.get('/Interactions')
@@ -293,8 +286,6 @@ export default function InteractionsPage() {
   useEffect(() => {
     loadInteractions()
   }, [])
-
-  // ---------- Фильтрация ----------
 
   const programById = useMemo(
     () => Object.fromEntries(programs.map((p) => [p.id, p])),
@@ -327,10 +318,41 @@ export default function InteractionsPage() {
     setPage(1)
   }, [period, fUniversity, fDirection, fProduct, fManager])
 
-  // ---------- Пагинация ----------
-
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const safePage = Math.min(page, pageCount)
+
+  // ---------- Применение focus из уведомления (?focus={id}) ----------
+  // СТРОГО ПОСЛЕ объявления filtered и safePage: массивы зависимостей
+  // эффектов вычисляются при рендере, и обращение к filtered/safePage
+  // до их инициализации даёт ReferenceError (TDZ).
+  // Зависит от pendingFocusId (state): срабатывает и при свежем
+  // заходе по ссылке, и при клике по уведомлению из уже открытой
+  // страницы. Вычисляем СТРАНИЦУ, на которой лежит карточка
+  // (пагинация по 6), и выбираем её — без перехода карточка не
+  // рендерится.
+  useEffect(() => {
+    if (pendingFocusId == null || listLoading) return
+    const idx = filtered.findIndex((i) => i.id === pendingFocusId)
+    if (idx === -1) return // нет в текущей выборке (фильтры) — авто-выбор сработает
+    setPage(Math.floor(idx / PAGE_SIZE) + 1)
+    setSelectedId(pendingFocusId)
+    scrollToCardRef.current = true
+    setPendingFocusId(null)
+  }, [pendingFocusId, filtered, listLoading])
+
+  // Прокрутка к выбранной карточке — только после того, как нужная
+  // страница отрендерилась (переход по страницам меняет safePage)
+  useEffect(() => {
+    if (!scrollToCardRef.current) return
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        document
+          .querySelector('.interaction-card.active')
+          ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+        scrollToCardRef.current = false
+      })
+    })
+  }, [safePage, selectedId])
 
   const paged = useMemo(
     () => filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
@@ -374,8 +396,6 @@ export default function InteractionsPage() {
       setSelectedId(filtered[0].id)
     }
   }, [filtered, selectedId])
-
-  // ---------- Детали ----------
 
   function loadDetail(id) {
     setDetailLoading(true)
@@ -474,13 +494,9 @@ export default function InteractionsPage() {
     [detail],
   )
 
-  // ---------- Обновление после действий ----------
-
   async function reloadAll() {
     await Promise.all([loadInteractions(), selectedId ? loadDetail(selectedId) : Promise.resolve()])
   }
-
-  // ---------- Перевод статуса ----------
 
   async function handleTransition(e) {
     e.preventDefault()
@@ -504,8 +520,6 @@ export default function InteractionsPage() {
     }
   }
 
-  // ---------- Комментарии ----------
-
   async function handleAddComment(e) {
     e.preventDefault()
     if (!selectedId || !commentText.trim()) {
@@ -527,8 +541,6 @@ export default function InteractionsPage() {
       setCommentPending(false)
     }
   }
-
-  // ---------- Файлы ----------
 
   function pickFile(file) {
     const validationError = validateFile(file)
@@ -576,9 +588,6 @@ export default function InteractionsPage() {
     }
   }
 
-  // Удаление файла. Кнопка видна всегда; фактическое право (владелец /
-  // руководитель / админ) проверяет бэкенд. При отказе вернётся
-  // 403 ERR_FORBIDDEN с сообщением — оно покажется в .form-error.
   async function handleDeleteAttachment(attachment) {
     if (!window.confirm(`Удалить файл «${attachment.fileName}»? Это действие нельзя отменить.`)) return
     setFileBusyId(attachment.id)
@@ -598,8 +607,6 @@ export default function InteractionsPage() {
       setAttachStatusId(String(statuses[0].id))
     }
   }, [statuses, attachStatusId])
-
-  // ---------- Редактирование карточки (admin) ----------
 
   const selectedUniversity = universities.find((u) => u.id === detail?.universityId)
   const editPrograms = programs.filter(
@@ -645,8 +652,6 @@ export default function InteractionsPage() {
     }
   }
 
-  // ---------- Добавление статуса в workflow (admin) ----------
-
   function openAddStatus() {
     if (!workflow) return
     setStatusForm({
@@ -685,8 +690,6 @@ export default function InteractionsPage() {
     }
   }
 
-  // ---------- Опции фильтров ----------
-
   const universityOptions = useMemo(
     () =>
       [...universities]
@@ -709,8 +712,6 @@ export default function InteractionsPage() {
 
   const attachments = detail?.attachments ?? []
   const isFinalReached = Boolean(currentStatus?.isFinal)
-
-  // ---------- Разметка ----------
 
   return (
     <div className="dashboard">
@@ -735,46 +736,18 @@ export default function InteractionsPage() {
 
       {pageError && <div className="form-error" role="alert">{pageError}</div>}
 
-      {/* ---------- Фильтры ---------- */}
       <section className="panel">
         <div className="filters-grid">
-          <FilterSelect
-            label="Период"
-            value={period}
-            onChange={setPeriod}
-            options={PERIODS.map((p) => ({ value: p.id, label: p.label }))}
-            placeholder="Выберите период"
-          />
-          <FilterSelect
-            label="Вуз"
-            value={fUniversity}
-            onChange={setFUniversity}
-            options={universityOptions}
-          />
-          <FilterSelect
-            label="ИТ-направление"
-            value={fDirection}
-            onChange={setFDirection}
-            options={directionOptions}
-          />
-          <FilterSelect
-            label="ИТ-продукт"
-            value={fProduct}
-            onChange={setFProduct}
-            options={productOptions}
-          />
+          <FilterSelect label="Период" value={period} onChange={setPeriod} options={PERIODS.map((p) => ({ value: p.id, label: p.label }))} placeholder="Выберите период" />
+          <FilterSelect label="Вуз" value={fUniversity} onChange={setFUniversity} options={universityOptions} />
+          <FilterSelect label="ИТ-направление" value={fDirection} onChange={setFDirection} options={directionOptions} />
+          <FilterSelect label="ИТ-продукт" value={fProduct} onChange={setFProduct} options={productOptions} />
           {isPrivileged && (
-            <FilterSelect
-              label="Ответственный"
-              value={fManager}
-              onChange={setFManager}
-              options={managerOptions}
-            />
+            <FilterSelect label="Ответственный" value={fManager} onChange={setFManager} options={managerOptions} />
           )}
         </div>
       </section>
 
-      {/* ---------- Список + пагинация ---------- */}
       {listLoading ? (
         <p className="page-loader">Загрузка…</p>
       ) : filtered.length === 0 ? (
@@ -863,7 +836,6 @@ export default function InteractionsPage() {
         </>
       )}
 
-      {/* ---------- Карта выбранного взаимодействия ---------- */}
       {selectedId && (
         <section className="panel">
           <div className="panel-head">
@@ -935,10 +907,7 @@ export default function InteractionsPage() {
                   <h3>Перевод статуса</h3>
                   <label className="field">
                     <span className="field-label">Новый статус</span>
-                    <select
-                      value={targetStatusId}
-                      onChange={(e) => setTargetStatusId(e.target.value)}
-                    >
+                    <select value={targetStatusId} onChange={(e) => setTargetStatusId(e.target.value)}>
                       {allowedTargets.map((s) => (
                         <option key={s.id} value={String(s.id)}>
                           Шаг {s.sortOrder} «{s.name}»
@@ -965,6 +934,7 @@ export default function InteractionsPage() {
                   </div>
                 </form>
               )}
+
               {isFinalReached && (
                 <p className="empty">Взаимодействие завершено (достигнут финальный статус).</p>
               )}
@@ -973,10 +943,8 @@ export default function InteractionsPage() {
         </section>
       )}
 
-      {/* ---------- Комментарии и файлы ---------- */}
       {selectedId && detail && (
         <section className="interactions-grid">
-          {/* Комментарии пользователей */}
           <div className="panel">
             <h2>Комментарии пользователей</h2>
             <div className="comments-list">
@@ -1031,7 +999,6 @@ export default function InteractionsPage() {
             </form>
           </div>
 
-          {/* Файлы */}
           <div className="panel">
             <h2>Файлы</h2>
             <div
@@ -1086,10 +1053,7 @@ export default function InteractionsPage() {
 
             <label className="field">
               <span className="field-label">К какому статусу привязать?</span>
-              <select
-                value={attachStatusId}
-                onChange={(e) => setAttachStatusId(e.target.value)}
-              >
+              <select value={attachStatusId} onChange={(e) => setAttachStatusId(e.target.value)}>
                 {statuses.map((s) => (
                   <option key={s.id} value={String(s.id)}>
                     Шаг {s.sortOrder} «{s.name}»
@@ -1137,7 +1101,6 @@ export default function InteractionsPage() {
                     >
                       {fileBusyId === a.id ? '…' : <IconDownload size={18} />}
                     </button>
-                    {/* Кнопка удаления видна всегда; право проверяет бэкенд */}
                     <button
                       type="button"
                       className="icon-btn file-download file-delete"
@@ -1156,7 +1119,6 @@ export default function InteractionsPage() {
         </section>
       )}
 
-      {/* ---------- Модалка: редактирование взаимодействия (admin) ---------- */}
       {editOpen && (
         <div className="modal-overlay" onClick={() => setEditOpen(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
@@ -1179,9 +1141,7 @@ export default function InteractionsPage() {
                 <span className="field-label">ИТ-направление</span>
                 <select
                   value={editForm.directionId}
-                  onChange={(e) =>
-                    setEditForm((f) => ({ ...f, directionId: e.target.value, programId: '' }))
-                  }
+                  onChange={(e) => setEditForm((f) => ({ ...f, directionId: e.target.value, programId: '' }))}
                 >
                   <option value="">Выберите направление</option>
                   {directionOptions.map((o) => (
@@ -1240,14 +1200,12 @@ export default function InteractionsPage() {
         </div>
       )}
 
-      {/* ---------- Модалка: добавление статуса в workflow (admin) ---------- */}
       {statusOpen && (
         <div className="modal-overlay" onClick={() => setStatusOpen(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h2>Добавить статус в workflow</h2>
             <p className="form-hint">
-              Workflow: {workflow?.name ?? '—'}. Новый этап появится на карте всех взаимодействий
-              этого workflow.
+              Workflow: {workflow?.name ?? '—'}. Новый этап появится на карте всех взаимодействий этого workflow.
             </p>
             <form onSubmit={handleStatusSave} className="modal-form">
               <label className="field">

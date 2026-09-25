@@ -1,0 +1,312 @@
+{
+  "info": {
+    "_postman_id": "0ae8fb80-0d5f-4a59-85b2-3f9d22dc7b1b",
+    "name": "JSTEST",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "38970977",
+    "_collection_link": "https://go.postman.co/collection/38970977-0ae8fb80-0d5f-4a59-85b2-3f9d22dc7b1b?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "Login",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const data = pm.response.json();\r",
+              "pm.collectionVariables.set(\"token\", data.accessToken);"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"userName\": \"admin@example.com\",\r\n  \"password\": \"12345\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://localhost:5026/api/Auth/login",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "5026",
+          "path": [
+            "api",
+            "Auth",
+            "login"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Interactions",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:5026/api/Interactions",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "5026",
+          "path": [
+            "api",
+            "Interactions"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Universities",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:5026/api/Universities",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "5026",
+          "path": [
+            "api",
+            "Universities"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Statistics",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"dateFrom\": null,\r\n  \"dateTo\": null,\r\n  \"universityIds\": [],\r\n  \"directionIds\": [],\r\n  \"productIds\": [],\r\n  \"managerIds\": [],\r\n  \"columns\": [\"university\", \"status\"]\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://localhost:5026/api/Reports/statistics",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "5026",
+          "path": [
+            "api",
+            "Reports",
+            "statistics"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Workflows",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:5026/api/Workflows/1",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "5026",
+          "path": [
+            "api",
+            "Workflows",
+            "1"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "ReportsEasy",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{ \"dateFrom\": \"2026-09-01\", \"dateTo\": null, \"universityIds\": [], \"directionIds\": [], \"productIds\": [], \"managerIds\": [], \"columns\": [\"university\", \"status\"] }",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://localhost:5026/api/Reports/xlsx",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "5026",
+          "path": [
+            "api",
+            "Reports",
+            "xlsx"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "ReportsMedium",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{ \"dateFrom\": \"2026-07-01\", \"dateTo\": null, \"universityIds\": [], \"directionIds\": [1], \"productIds\": [], \"managerIds\": [], \"columns\": [\"university\",\"direction\",\"status\",\"manager\",\"vendor\"] }",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://localhost:5026/api/Reports/pdf",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "5026",
+          "path": [
+            "api",
+            "Reports",
+            "pdf"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "ReportsHard",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{ \"dateFrom\": \"2026-01-01\", \"dateTo\": null, \"universityIds\": [], \"directionIds\": [], \"productIds\": [], \"managerIds\": [], \"columns\": [\"university\",\"direction\",\"product\",\"status\",\"manager\",\"vendor\",\"contractNumber\"] }",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://localhost:5026/api/Reports/xlsx",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "5026",
+          "path": [
+            "api",
+            "Reports",
+            "xlsx"
+          ]
+        }
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    {
+      "key": "token",
+      "value": ""
+    }
+  ]
+}

@@ -13,11 +13,10 @@ import {
   IconGear,
 } from './icons.jsx'
 
-// Боковое меню приложения (по макету команды).
-// Раздел «Система» (пользователи и права, интеграции API) виден только
-// администраторам (роль admin из Keycloak).
-// На мобильных меню управляется чекбоксом #nav-toggle (см. Shell в App.jsx):
-// крестик и клик по пункту меню снимают этот чекбокс — меню закрывается.
+// Боковое меню приложения.
+// Раздел «Система» виден только администраторам (роль admin из Keycloak).
+// На мобильных меню управляется чекбоксом #nav-toggle: крестик и клик
+// по пункту меню снимают чекбокс — меню закрывается.
 
 const GROUPS = [
   {
@@ -57,7 +56,8 @@ const SYSTEM_GROUP = {
   icon: IconGear,
   title: 'Система',
   items: [
-    { to: '/system', label: 'Пользователи и права' },
+    { to: '/system', label: 'Пользователи и права', end: true },
+    { to: '/system/workflows', label: 'Workflow' },
     { to: '/system/integrations', label: 'Интеграции API' },
   ],
 }
@@ -77,9 +77,7 @@ function NavItems({ items }) {
             to={item.to}
             end={item.end}
             onClick={closeMobileNav}
-            className={({ isActive }) =>
-              isActive ? 'side-link active' : 'side-link'
-            }
+            className={({ isActive }) => (isActive ? 'side-link active' : 'side-link')}
           >
             {item.label}
           </NavLink>
@@ -120,14 +118,11 @@ export default function Sidebar() {
         {GROUPS.map((group) => (
           <Group key={group.title} {...group} />
         ))}
-
         {isAdmin && <Group {...SYSTEM_GROUP} />}
       </nav>
 
       <div className="sidebar-footer">
-        Система контроля обучения
-        <br />
-        ИТ-направлениям
+        Система контроля обучения <br /> ИТ-направлениям
       </div>
     </aside>
   )

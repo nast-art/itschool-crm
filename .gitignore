@@ -1,8 +1,31 @@
-backend/**/bin/
-backend/**/obj/
-backend/**/*.user
-frontend/node_modules/
-frontend/dist/
-backend/**/appsettings.Development.json
+# ===== Секреты и локальная конфигурация =====
+.env
+*.local
+
+# ===== .NET (API) =====
+bin/
+obj/
+*.user
+*.suo
 .vs/
+*.usersecrets.json
+
+# ===== Node / фронтенд =====
+node_modules/
+dist/
+.vite/
+
+# ===== Загруженные файлы пользователей (вложения) =====
 uploads/
+
+# ===== IDE и ОС =====
+.vscode/
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# ===== Логи и временное =====
+*.log
+logs/
+tmp/

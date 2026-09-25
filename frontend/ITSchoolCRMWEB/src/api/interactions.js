@@ -2,7 +2,7 @@
 // Вынесены из общего client.js, потому что здесь нужен multipart-аплоад
 // файлов и скачивание бинарных вложений — общий клиент всё парсит как JSON.
 //
-// Маршрты соответствуют AttachmentsController:
+// Маршруты соответствуют AttachmentsController:
 //   POST /Attachments/interaction/{interactionId}/status/{statusId}
 //   GET  /Attachments/interaction/{interactionId}
 //   GET  /Attachments/{id}/download
@@ -72,9 +72,35 @@ export async function downloadAttachment(attachment) {
 
   const blob = await response.blob()
 
+  // Имя файла из Content-Disposition. Порядок важен:
+  // 1) filename*=... — RFC 5987, единственный способ передать кириллицу
+  //    (бэкенд шлёт filename*=UTF-8''%D0%A5...);
+  // 2) filename="..." — ASCII-fallback для старых браузеров
+  //    (у нас там "attachment", кириллицы в нём быть не может);
+  // 3) имя из БД — последний fallback, если заголовок отсутствует.
   const disposition = response.headers.get('Content-Disposition') ?? ''
-  const match = disposition.match(/filename\*?="?([^";]+)"?/)
-  const filename = match ? decodeURIComponent(match[1]) : attachment.fileName ?? 'file'
+  let filename = null
+
+  // filename* пишется БЕЗ кавычек: filename*=UTF-8''%D0%A5...
+  // значение — до «;» или конца строки
+  const starMatch = disposition.match(/filename\*=(?:UTF-8'')?([^;]+)/i)
+  if (starMatch) {
+    try {
+      filename = decodeURIComponent(starMatch[1].trim())
+    } catch {
+      // Проценты битые — идём к следующему варианту
+      filename = null
+    }
+  }
+
+  if (!filename) {
+    const plainMatch = disposition.match(/filename="?([^";]+)"?/)
+    if (plainMatch) {
+      filename = plainMatch[1]
+    }
+  }
+
+  filename = filename || attachment.fileName || 'file'
 
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')

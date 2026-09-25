@@ -1,7 +1,8 @@
 // Страница «ИТ-направления» — каталог образовательных программ
 // по ИТ-направлениям (требование 1 ТЗ: каталоги в БД).
 // Состав по макету:
-//   1. Шапка: «ИТ-программы и продукты» + подзаголовок.
+//   1. Шапка: «ИТ-направления» + подзаголовок + пояснение модели
+//      приоритетов (видно только руководителю и администратору).
 //   2. Сетка карточек направлений: название, описание, статистика
 //      («N вузов» — вузы с взаимодействиями по направлению,
 //      «N модулей» — программы направления), кнопка «Открыть workflow»
@@ -11,8 +12,15 @@
 //      продукт) — только руководитель и администратор.
 //   4. Ранжирование по востребованности (уточнение заказчика:
 //      «иметь возможность изменения приоритетов»): привилегированные
-//      роли могут менять приоритет направления (▲▼), сортировка
-//      карточек — по приоритету, затем по числу вузов.
+//      роли могут менять приоритет направления (▲▼).
+//
+// МОДЕЛЬ ПРИОРИТЕТА (объяснена прямо на странице):
+//   Число — место карточки в списке. 1 — самый высокий приоритет,
+//   МЕНЬШЕ 1 БЫТЬ НЕ МОЖЕТ. Стрелка ▲ ПОНИЖАЕТ приоритет (число +1,
+//   карточка опускается ниже), стрелка ▼ ПОВЫШАЕТ (число −1, карточка
+//   поднимается выше); на значении 1 стрелка ▼ блокируется. Кнопка ✓
+//   сохраняет изменение на сервере. Направления без приоритета («—»)
+//   стоят ниже всех и отсортированы по числу вузов.
 //
 // РОЛЕВАЯ МОДЕЛЬ (п. 11 ТЗ):
 //   user    — только просмотр и переход на workflow;
@@ -44,7 +52,7 @@ export default function DirectionsPage() {
   const { user } = useAuth()
 
   // Ролевая модель (п. 11 ТЗ) — управляет видимостью
-  // карточки «Добавить программу» и приоритетов
+  // карточки «Добавить программу» и блоков приоритета
   const roles = user?.roles ?? []
   const isAdmin = roles.includes('admin')
   const isManager = roles.includes('manager')
@@ -68,7 +76,8 @@ export default function DirectionsPage() {
     description: '',
   })
 
-  // Приоритеты: локальный черновик, пока не сохранён
+  // Приоритеты: локальный черновик, пока не сохранён (✓);
+  // prioritySavingId блокирует стрелки на время запроса
   const [priorityDraft, setPriorityDraft] = useState({})
   const [prioritySavingId, setPrioritySavingId] = useState(null)
   const [priorityError, setPriorityError] = useState('')
@@ -130,10 +139,11 @@ export default function DirectionsPage() {
   }, [programs])
 
   // ---------- Ранжирование ----------
-  // Сортировка: по приоритету (меньше = выше), без приоритета —
-  // по востребованности (числу вузов). Так реализован «простой путь»
-  // ранжирования программ по востребованности с ручной корректировкой
-  // приоритетов (уточнение заказчика).
+  // Сортировка: по приоритету по ВОЗРАСТАНИЮ — 1 самый высокий,
+  // меньше 1 быть не может; без приоритета — по востребованности
+  // (числу вузов). Так реализован «простой путь» ранжирования
+  // программ по востребованности с ручной корректировкой приоритетов
+  // (уточнение заказчика).
 
   function priorityOf(direction) {
     if (direction.id in priorityDraft) {
@@ -147,6 +157,7 @@ export default function DirectionsPage() {
       [...directions].sort((a, b) => {
         const pa = priorityOf(a)
         const pb = priorityOf(b)
+        // По возрастанию: 1 — выше всех, большие числа ниже
         if (pa != null && pb != null && pa !== pb) return pa - pb
         if (pa != null && pb == null) return -1
         if (pa == null && pb != null) return 1
@@ -160,10 +171,14 @@ export default function DirectionsPage() {
   )
 
   // ---------- Изменение приоритета (manager/admin) ----------
+  // Модель: 1 — самый высокий приоритет, меньше 1 быть не может.
+  // ▲ (delta +1) ПОНИЖАЕТ приоритет, ▼ (delta −1) ПОВЫШАЕТ.
+  // У направления без приоритета («—») отсчёт начинается с 1.
 
   function changePriorityDraft(direction, delta) {
-    const current = priorityOf(direction) ?? 0
-    setPriorityDraft((d) => ({ ...d, [direction.id]: current + delta }))
+    const current = priorityOf(direction) ?? 1
+    const next = Math.max(1, current + delta)
+    setPriorityDraft((d) => ({ ...d, [direction.id]: next }))
     setPriorityError('')
   }
 
@@ -179,7 +194,9 @@ export default function DirectionsPage() {
       })
       setDirections((list) =>
         list.map((d) =>
-          d.id === direction.id ? { ...d, priority: priorityDraft[direction.id] } : d,
+          d.id === direction.id
+            ? { ...d, priority: priorityDraft[direction.id] }
+            : d,
         ),
       )
       setPriorityDraft((d) => {
@@ -251,12 +268,36 @@ export default function DirectionsPage() {
       <div className="page-head">
         <div>
           <h1>ИТ-направления</h1>
-          <p className="page-sub">Каталог образовательных программ по ИТ-направлениям</p>
+          <p className="page-sub">
+            Каталог образовательных программ по ИТ-направлениям
+          </p>
+          {/* Пояснение модели приоритетов — видно только руководителю
+              и администратору (только они могут её менять).
+              Зафиксировано: 1 — самый высокий приоритет. */}
+          {canManage && (
+            <p className="form-hint" style={{ marginTop: 6, maxWidth: 640 }}>
+              Как работает приоритет: число показывает место карточки в
+              списке — 1 — самый высокий приоритет, меньше 1 быть не может.
+              Стрелка ▲ понижает приоритет (прибавляет 1 и опускает карточку
+              ниже), стрелка ▼ повышает (отнимает 1 и поднимает карточку
+              выше). Изменения применяются кнопкой ✓. Направления без
+              приоритета («—») стоят ниже всех и отсортированы по числу
+              вузов.
+            </p>
+          )}
         </div>
       </div>
 
-      {pageError && <div className="form-error" role="alert">{pageError}</div>}
-      {priorityError && <div className="form-error" role="alert">{priorityError}</div>}
+      {pageError && (
+        <div className="form-error" role="alert">
+          {pageError}
+        </div>
+      )}
+      {priorityError && (
+        <div className="form-error" role="alert">
+          {priorityError}
+        </div>
+      )}
 
       {loading ? (
         <p className="page-loader">Загрузка…</p>
@@ -274,27 +315,38 @@ export default function DirectionsPage() {
                 <div className="dir-card-head">
                   <h3>{d.name}</h3>
                   {canManage && (
-                    // Ранжирование по востребованности: ручная
-                    // корректировка приоритета (manager/admin)
-                    <div className="priority-control" title="Приоритет (меньше — выше в списке)">
-                      <button
-                        type="button"
-                        className="priority-btn"
-                        onClick={() => changePriorityDraft(d, -1)}
-                        disabled={prioritySavingId === d.id}
-                        aria-label="Повысить приоритет"
-                      >
-                        ▲
-                      </button>
-                      <span className="priority-value">
-                        {priorityOf(d) ?? '—'}
-                      </span>
+                    // Ранжирование по востребованности (manager/admin):
+                    // 1 — самый высокий приоритет, меньше 1 быть не может.
+                    // ▲ понижает приоритет (+1), ▼ повышает (−1);
+                    // на 1 стрелка ▼ заблокирована. ✓ сохраняет на сервере.
+                    <div
+                      className="priority-control"
+                      title="Приоритет: 1 — самый высокий. ▲ понижает (+1), ▼ повышает (−1), ✓ сохранить."
+                    >
                       <button
                         type="button"
                         className="priority-btn"
                         onClick={() => changePriorityDraft(d, 1)}
                         disabled={prioritySavingId === d.id}
-                        aria-label="Понизить приоритет"
+                        aria-label="Понизить приоритет: увеличить число на 1"
+                      >
+                        ▲
+                      </button>
+                      <span
+                        className="priority-value"
+                        title="Текущий приоритет (1 — самый высокий)"
+                      >
+                        {priorityOf(d) ?? '—'}
+                      </span>
+                      <button
+                        type="button"
+                        className="priority-btn"
+                        onClick={() => changePriorityDraft(d, -1)}
+                        disabled={
+                          prioritySavingId === d.id ||
+                          (priorityOf(d) ?? 1) <= 1
+                        }
+                        aria-label="Повысить приоритет: уменьшить число на 1"
                       >
                         ▼
                       </button>
@@ -304,6 +356,7 @@ export default function DirectionsPage() {
                           className="priority-save"
                           onClick={() => savePriority(d)}
                           disabled={prioritySavingId === d.id}
+                          title="Сохранить приоритет"
                         >
                           {prioritySavingId === d.id ? '…' : '✓'}
                         </button>
@@ -315,11 +368,17 @@ export default function DirectionsPage() {
                 {d.description && <p className="dir-desc">{d.description}</p>}
 
                 <div className="dir-stats">
-                  <span className="dir-stat" title="Вузы с взаимодействиями по направлению">
+                  <span
+                    className="dir-stat"
+                    title="Вузы с взаимодействиями по направлению"
+                  >
                     <IconBuilding size={16} />
                     {universitiesCount} вузов
                   </span>
-                  <span className="dir-stat" title="Программы (модули) направления">
+                  <span
+                    className="dir-stat"
+                    title="Программы (модули) направления"
+                  >
                     <IconLayers size={16} />
                     {modulesCount} модулей
                   </span>
@@ -331,7 +390,9 @@ export default function DirectionsPage() {
                   <button
                     type="button"
                     className="btn-ghost"
-                    onClick={() => navigate(`/interactions?direction=${d.id}`)}
+                    onClick={() =>
+                      navigate(`/interactions?direction=${d.id}`)
+                    }
                   >
                     Открыть workflow
                     <IconArrowRight size={16} />
@@ -343,12 +404,18 @@ export default function DirectionsPage() {
 
           {/* ---------- Карточка добавления (manager/admin) ---------- */}
           {canManage && (
-            <button type="button" className="direction-card dir-add-card" onClick={openAdd}>
+            <button
+              type="button"
+              className="direction-card dir-add-card"
+              onClick={openAdd}
+            >
               <span className="dir-add-plus">
                 <IconPlus size={22} />
               </span>
               <strong>Добавить программу</strong>
-              <span className="dir-add-hint">Новое ИТ-направление или продукт</span>
+              <span className="dir-add-hint">
+                Новое ИТ-направление или продукт
+              </span>
             </button>
           )}
         </div>
@@ -360,14 +427,17 @@ export default function DirectionsPage() {
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h2>Добавить программу</h2>
             <p className="form-hint">
-              Создайте новое ИТ-направление или программу (модуль) в рамках существующего.
+              Создайте новое ИТ-направление или программу (модуль) в рамках
+              существующего.
             </p>
             <form onSubmit={handleAddSave} className="modal-form">
               <label className="field">
                 <span className="field-label">Тип</span>
                 <select
                   value={addForm.type}
-                  onChange={(e) => setAddForm((f) => ({ ...f, type: e.target.value }))}
+                  onChange={(e) =>
+                    setAddForm((f) => ({ ...f, type: e.target.value }))
+                  }
                 >
                   <option value="program">ИТ-программа (модуль)</option>
                   <option value="direction">ИТ-направление</option>
@@ -378,9 +448,13 @@ export default function DirectionsPage() {
                 <input
                   type="text"
                   value={addForm.name}
-                  onChange={(e) => setAddForm((f) => ({ ...f, name: e.target.value }))}
+                  onChange={(e) =>
+                    setAddForm((f) => ({ ...f, name: e.target.value }))
+                  }
                   placeholder={
-                    addForm.type === 'direction' ? 'Например: DevOps' : 'Например: DevOps-инженер'
+                    addForm.type === 'direction'
+                      ? 'Например: DevOps'
+                      : 'Например: DevOps-инженер'
                   }
                   required
                 />
@@ -390,7 +464,12 @@ export default function DirectionsPage() {
                   <span className="field-label">ИТ-направление</span>
                   <select
                     value={addForm.directionId}
-                    onChange={(e) => setAddForm((f) => ({ ...f, directionId: e.target.value }))}
+                    onChange={(e) =>
+                      setAddForm((f) => ({
+                        ...f,
+                        directionId: e.target.value,
+                      }))
+                    }
                   >
                     <option value="">Выберите направление</option>
                     {directions.map((d) => (
@@ -405,17 +484,31 @@ export default function DirectionsPage() {
                 <span className="field-label">Описание (необязательно)</span>
                 <textarea
                   value={addForm.description}
-                  onChange={(e) => setAddForm((f) => ({ ...f, description: e.target.value }))}
+                  onChange={(e) =>
+                    setAddForm((f) => ({ ...f, description: e.target.value }))
+                  }
                   placeholder="Краткое описание"
                   rows={3}
                 />
               </label>
-              {addError && <div className="form-error" role="alert">{addError}</div>}
+              {addError && (
+                <div className="form-error" role="alert">
+                  {addError}
+                </div>
+              )}
               <div className="modal-actions">
-                <button type="button" className="btn-ghost" onClick={() => setAddOpen(false)}>
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  onClick={() => setAddOpen(false)}
+                >
                   Отмена
                 </button>
-                <button type="submit" className="btn-primary" disabled={addPending}>
+                <button
+                  type="submit"
+                  className="btn-primary"
+                  disabled={addPending}
+                >
                   {addPending ? 'Сохранение…' : 'Добавить'}
                 </button>
               </div>

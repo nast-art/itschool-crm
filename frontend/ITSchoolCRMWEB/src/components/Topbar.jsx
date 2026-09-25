@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
+import { notificationService } from '../api/notifications.js'
 import { logout } from '../auth/auth'
 import { useAuth } from '../App.jsx'
-import { requestUniversityFilter } from '../state/dashboardFilter.js'
 import {
   IconBell,
   IconSearch,
@@ -25,21 +25,26 @@ function useClickOutside(ref, onClose) {
   }, [ref, onClose])
 }
 
-// Демо-уведомления (заглушка до появления реального сервиса нотификаций).
-const NOTIFICATIONS = [
-  {
-    id: 1,
-    title: 'Интеграция с LMS',
-    text: 'Последняя синхронизация прошла успешно (заглушка).',
-    time: 'сегодня',
-  },
-  {
-    id: 2,
-    title: 'Напоминание',
-    text: 'Проверьте взаимодействия, зависшие в одном статусе более 14 дней.',
-    time: 'сегодня',
-  },
-]
+// Подписи типов уведомлений — тип приходит с бэкенда
+// (stale_status, license_expiring), в интерфейсе — человекочитаемая метка
+const NOTIFICATION_TYPE_LABELS = {
+  stale_status: 'Зависшая заявка',
+  license_expiring: 'Лицензия',
+  integration: 'Интеграция',
+  system: 'Система',
+}
+
+// «сегодня, 14:32» / «21.09.2026» — короткая подпись ко времени уведомления
+function formatWhen(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const today = new Date()
+  const sameDay = d.toDateString() === today.toDateString()
+  return sameDay
+    ? `сегодня, ${d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`
+    : d.toLocaleDateString('ru-RU')
+}
 
 export default function Topbar({ title }) {
   const navigate = useNavigate()
@@ -59,6 +64,12 @@ export default function Topbar({ title }) {
   useClickOutside(bellRef, () => setBellOpen(false))
   useClickOutside(profileRef, () => setProfileOpen(false))
 
+  // Подписка на NotificationService: снапшот приходит синхронно,
+  // дальше сервис сам обновляет (поллинг 30 с + возврат во вкладку).
+  const [snapshot, setSnapshot] = useState(() => notificationService.getSnapshot())
+  useEffect(() => notificationService.subscribe(setSnapshot), [])
+  const { notifications, unreadCount, loaded, error } = snapshot
+
   // Справочник вузов для поиска
   useEffect(() => {
     api.get('/Universities')
@@ -75,6 +86,39 @@ export default function Topbar({ title }) {
 
   const displayName = user?.fullName || user?.userName || user?.email || 'Пользователь'
   const initials = displayName.trim().charAt(0).toUpperCase()
+
+  // Открытие панели уведомлений = прочитали их.
+  // Сервис обновляет состояние оптимистично и догоняет бэкенд
+  // (POST /Notifications/read-all).
+  function handleBellClick() {
+    const willOpen = !bellOpen
+    setBellOpen(willOpen)
+    setProfileOpen(false)
+    if (willOpen) {
+      notificationService.markAllRead()
+    }
+  }
+
+  // Клик по уведомлению с link: пометка прочитанным + переход
+  function handleNotificationClick(n) {
+    if (!n.isRead) {
+      notificationService.markRead(n.id)
+    }
+    if (n.link) {
+      setBellOpen(false)
+      navigate(n.link)
+    }
+  }
+
+  // Клик по результату поиска: переход в реестр «Вузы» С ФИЛЬТРОМ
+  // по выбранному вузу (?university={id}). Работает с любой страницы:
+  // страница «Вузы» принимает параметр и применяет фильтр сама
+  // (функциональное требование 1 ТЗ — фильтрация по выбранным вузам).
+  function handleUniversityClick(u) {
+    setQuery('')
+    setSearchOpen(false)
+    navigate(`/universities?university=${u.id}`)
+  }
 
   return (
     <header className="topbar">
@@ -106,11 +150,7 @@ export default function Topbar({ title }) {
                 <button
                   key={u.id}
                   className="dropdown-item"
-                  onClick={() => {
-                    setQuery('')
-                    setSearchOpen(false)
-                    navigate('/universities')
-                  }}
+                  onClick={() => handleUniversityClick(u)}
                 >
                   {u.name}
                 </button>
@@ -125,29 +165,81 @@ export default function Topbar({ title }) {
         <div className="topbar-item" ref={bellRef}>
           <button
             className="icon-btn"
-            onClick={() => {
-              setBellOpen((v) => !v)
-              setProfileOpen(false)
-            }}
+            onClick={handleBellClick}
             aria-label="Уведомления"
           >
             <IconBell size={22} />
-            {NOTIFICATIONS.length > 0 && (
-              <span className="icon-badge">{NOTIFICATIONS.length}</span>
+            {unreadCount > 0 && (
+              <span className="icon-badge">{unreadCount}</span>
             )}
           </button>
           <span className="topbar-hint">Уведомления</span>
 
           {bellOpen && (
-            <div className="dropdown dropdown--right">
-              <div className="dropdown-title">Уведомления</div>
-              {NOTIFICATIONS.map((n) => (
-                <div key={n.id} className="dropdown-note">
-                  <strong>{n.title}</strong>
-                  <p>{n.text}</p>
-                  <span>{n.time}</span>
-                </div>
-              ))}
+            <div className="dropdown dropdown--right dropdown--notifications">
+              {/* Шапка панели: заголовок + «Прочитать все» (не скроллится) */}
+              <div className="dropdown-title dropdown-title--row">
+                <span>Уведомления</span>
+                {unreadCount > 0 && (
+                  <button
+                    type="button"
+                    className="notif-readall"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      notificationService.markAllRead()
+                    }}
+                  >
+                    Прочитать все
+                  </button>
+                )}
+              </div>
+
+              {/* Список — единственная скроллящаяся часть панели */}
+              <div className="dropdown-list">
+                {/* Состояния: загрузка / ошибка без кэша / пусто */}
+                {!loaded && !error && (
+                  <div className="dropdown-empty">Загрузка…</div>
+                )}
+                {error && !loaded && (
+                  <div className="dropdown-empty">
+                    Уведомления недоступны. Попробуйте позже.
+                  </div>
+                )}
+                {loaded && notifications.length === 0 && (
+                  <div className="dropdown-empty">Уведомлений нет</div>
+                )}
+
+                {notifications.map((n) => (
+                  <div
+                    key={n.id}
+                    className={n.isRead ? 'notif' : 'notif is-unread'}
+                    role={n.link ? 'button' : undefined}
+                    tabIndex={n.link ? 0 : undefined}
+                    onClick={() => handleNotificationClick(n)}
+                    onKeyDown={(e) => {
+                      if (n.link && (e.key === 'Enter' || e.key === ' ')) {
+                        e.preventDefault()
+                        handleNotificationClick(n)
+                      }
+                    }}
+                  >
+                    {/* Служебная строка: метка типа слева, время справа */}
+                    <div className="notif-meta">
+                      <span className="notif-type">
+                        {NOTIFICATION_TYPE_LABELS[n.type] ?? 'Уведомление'}
+                      </span>
+                      {formatWhen(n.createdAt) && (
+                        <span className="notif-time">{formatWhen(n.createdAt)}</span>
+                      )}
+                    </div>
+                    <p className="notif-title">{n.title}</p>
+                    {/* Текст — максимум 2 строки; полный по наведению (title) */}
+                    <p className="notif-text" title={n.text}>
+                      {n.text}
+                    </p>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -177,7 +269,8 @@ export default function Topbar({ title }) {
                 </p>
               </div>
               <button className="dropdown-item danger" onClick={logout}>
-                <IconLogout size={16} /> Выйти
+                <IconLogout size={16} />
+                Выйти
               </button>
             </div>
           )}

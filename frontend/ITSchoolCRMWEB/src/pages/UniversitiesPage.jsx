@@ -1,37 +1,41 @@
 // Страница «Вузы» — каталог учебных заведений и статусы взаимодействия.
 // Состав по макету:
-//   1. Шапка: «Вузы» + подзаголовок, справа кнопки «Импорт» и «Добавить вуз»
-//      (только руководитель и администратор — п. 11 ТЗ).
-//   2. Панель фильтров: Период (дата), Вуз, ИТ-направление, Ответственный
-//      и кнопка «Применить» — фильтры применяются по нажатию (по макету),
-//      а не мгновенно.
-//   3. Таблица со всей информацией (по макету и требованию 1 ТЗ):
-//      Название вуза · Вендор · ПО · № Договора · Подписание лицензии ·
-//      Срок действия · Статус передачи · Менеджер · Ответственные · Комментарий.
-//   4. Действия в строке: «Назначить менеджера» (руководитель/админ).
-//   5. Пагинация таблицы: пейджер «‹ Страница X из Y ›» с ручным вводом.
+// 1. Шапка: «Вузы» + подзаголовок, справа кнопки «Импорт» и «Добавить вуз»
+// (только руководитель и администратор — п. 11 ТЗ).
+// 2. Панель фильтров: Период (дата), Вуз, ИТ-направление, Ответственный
+// и кнопка «Применить» — фильтры применяются по нажатию (по макету),
+// а не мгновенно.
+// 3. Таблица со всей информацией (по макету и требованию 1 ТЗ):
+// Название вуза · Вендор · ПО · № Договора · Подписание лицензии ·
+// Срок действия · Статус передачи · Менеджер · Ответственные · Комментарий.
+// 4. Действия в строке: «Назначить менеджера» (руководитель/админ).
+// 5. Пагинация таблицы: пейджер «‹ Страница X из Y ›» с ручным вводом.
+// 6. Глубокая ссылка из поиска в верхней панели: ?university={id} —
+// страница принимает параметр и сразу применяет фильтр «Вуз»
+// (работает с любой страницы приложения).
 //
 // РОЛЕВАЯ МОДЕЛЬ (п. 11 ТЗ):
-//   user    — только просмотр (данные уже отфильтрованы бэкендом
-//             по university_managers);
-//   manager — просмотр + импорт + добавление вуза + назначение менеджеров
-//             («имеет возможность изменять ответственных пользователей
-//             за вузы (менять, удалять, назначать)»);
-//   admin   — всё вышеперечисленное.
+// user — только просмотр (данные уже отфильтрованы бэкендом
+// по university_managers);
+// manager — просмотр + импорт + добавление вуза + назначение менеджеров
+// («имеет возможность изменять ответственных пользователей
+// за вузы (менять, удалять, назначать)»);
+// admin — всё вышеперечисленное.
 //
 // Контракт с бэкендом (ITSchoolCRM.API):
-//   GET  /Interactions        — список (уже отфильтрован по доступу)
-//   GET  /Universities        — справочник вузов
-//   GET  /Directions          — справочник направлений
-//   GET  /Programs            — программы (нужны для фильтра по направлению)
-//   GET  /Products            — продукты (колонка «Вендор»)
-//   GET  /Contracts           — договоры (колонка «№ Договора»)
-//   GET  /Licenses            — лицензии (подписание, срок, статус, комментарий)
-//   GET  /Users               — пользователи (назначение менеджера)
-//   PUT  /Interactions/{id}   — назначение менеджера (существующий эндпоинт)
-//   POST /Universities        — добавление вуза (руководитель/админ)
-//   POST /Universities/import — импорт каталога xls/xlsx (multipart)
+// GET /Interactions — список (уже отфильтрован по доступу)
+// GET /Universities — справочник вузов
+// GET /Directions — справочник направлений
+// GET /Programs — программы (нужны для фильтра по направлению)
+// GET /Products — продукты (колонка «Вендор»)
+// GET /Contracts — договоры (колонка «№ Договора»)
+// GET /Licenses — лицензии (подписание, срок, статус, комментарий)
+// GET /Users — пользователи (назначение менеджера)
+// PUT /Interactions/{id} — назначение менеджера (существующий эндпоинт)
+// POST /Universities — добавление вуза (руководитель/админ)
+// POST /Universities/import — импорт каталога xls/xlsx (multipart)
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { api } from '../api/client'
 import { getContracts, getLicenses, importUniversityCatalog } from '../api/universities.js'
 import { useAuth } from '../App.jsx'
@@ -98,6 +102,7 @@ function FilterField({ label, children }) {
 
 export default function UniversitiesPage() {
   const { user } = useAuth()
+  const [searchParams, setSearchParams] = useSearchParams()
 
   // Ролевая модель (п. 11 ТЗ) — управляет видимостью кнопок и действий
   const roles = user?.roles ?? []
@@ -199,6 +204,21 @@ export default function UniversitiesPage() {
       .then((list) => setInteractions(list ?? []))
       .catch((err) => setPageError(err.message))
   }
+
+  // ---------- Глубокая ссылка из поиска: ?university={id} ----------
+  // Поиск в верхней панели ведёт сюда с параметром. Применяем его как
+  // фильтр «Вуз» (и в черновик, и в применённые фильтры — чтобы
+  // таблица сразу перестроилась), затем убираем параметр из URL,
+  // чтобы обновление страницы не восстанавливало фильтр повторно.
+  useEffect(() => {
+    const universityId = searchParams.get('university')
+    if (!universityId) return
+    setDraftUniversity(universityId)
+    setFilters((f) => ({ ...f, university: universityId }))
+    setPage(1)
+    searchParams.delete('university')
+    setSearchParams(searchParams, { replace: true })
+  }, [searchParams, setSearchParams])
 
   // ---------- Сборка строк таблицы ----------
 
@@ -662,7 +682,7 @@ export default function UniversitiesPage() {
       </section>
 
       {/* ---------- Модалка: добавление вуза (руководитель/админ) ----------
-          Поля — по согласованному маппингу требования 1 ТЗ */}
+      Поля — по согласованному маппингу требования 1 ТЗ */}
       {addOpen && (
         <div className="modal-overlay" onClick={() => setAddOpen(false)}>
           <div className="modal modal--wide" onClick={(e) => e.stopPropagation()}>
@@ -809,9 +829,7 @@ export default function UniversitiesPage() {
             <h2>Назначить менеджера</h2>
             <p className="form-hint">
               Вуз: {assignRow.interaction.universityName ?? '—'}
-              {assignRow.interaction.programName
-                ? ` · ${assignRow.interaction.programName}`
-                : ''}
+              {assignRow.interaction.programName ? ` · ${assignRow.interaction.programName}` : ''}
             </p>
             <form onSubmit={handleAssignSave} className="modal-form">
               <label className="field">
