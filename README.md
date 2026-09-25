@@ -33,29 +33,28 @@ docker compose up -d
 
 # 3. База данных: создайте БД и накатите скрипты из db/
 psql -U postgres -h localhost -c "CREATE DATABASE it_school_crm_db;"
-psql -U postgres -h localhost -d it_school_crm_db -f db/01-schema.sql
-psql -U postgres -h localhost -d it_school_crm_db -f db/02-seed.sql
+psql -U postgres -h localhost -d it_school_crm_db -f db/crm-db.sql
 
 # 4. Backend (локальная разработка — вне Docker)
-cd backend
+cd backend/ITSchoolCRM.API
 dotnet user-secrets set "Storage:S3:AccessKey" "&lt;ключ&gt;"
 dotnet user-secrets set "Storage:S3:SecretKey" "&lt;секрет&gt;"
 dotnet run
 # API: http://localhost:5026, Swagger: /swagger
 
 # 5. Frontend
-cd ../frontend
+cd ../../frontend/ITSchoolCRMWEB
 echo "VITE_API_URL=http://localhost:5026/api" &gt; .env
 npm install && npm run dev
 # UI: http://localhost:5173
 ```
 
 &gt; **Запуск всего контура в Docker** (API + фронт в контейнерах): в папках
-&gt; `backend/` и `frontend/` должны лежать `Dockerfile` (многостадийные
-&gt; сборки), тогда вместо шагов 4–5 достаточно `docker compose up -d --build`
-&gt; — UI будет на `http://localhost:5173`. Для разработки удобнее запускать
-&gt; backend/frontend с хоста, как описано выше: горячая пересборка,
-&gt; отладка в IDE.
+&gt; `backend/ITSchoolCRM.API/` и `frontend/ITSchoolCRMWEB/` должны лежать
+&gt; `Dockerfile` (многостадийные сборки), тогда вместо шагов 4–5 достаточно
+&gt; `docker compose up -d --build` — UI будет на `http://localhost:5173`.
+&gt; Для разработки удобнее запускать backend/frontend с хоста, как описано
+&gt; выше: горячая пересборка, отладка в IDE.
 
 Приложение доступно по адресу фронтенда; авторизация — через форму
 входа (Keycloak, за кадром).
@@ -78,8 +77,8 @@ realm `itschool` → Users → Role mapping).
 
 | Где | Что задаёт |
 |---|---|
-| `backend/appsettings.json` | Всё без секретов: TTL кэша, адреса, пустые заглушки ключей S3 |
-| `backend/appsettings.Development.json` | Строки подключения для разработки (localhost) |
+| `backend/ITSchoolCRM.API/appsettings.json` | Всё без секретов: TTL кэша, адреса, пустые заглушки ключей S3 |
+| `backend/ITSchoolCRM.API/appsettings.Development.json` | Строки подключения для разработки (localhost) |
 | User Secrets (`dotnet user-secrets`) | S3 AccessKey/SecretKey (локальная разработка) |
 | `.env` + секция `environment:` в `docker-compose.yml` | Секреты и строки подключения для Docker-окружения |
 
@@ -128,14 +127,14 @@ k6 run -e LOGIN=admin@example.com -e PASSWORD=12345 loadtest-reports.js  # 10 VU
 ## Структура репозитория
 
 ```
-backend/            ASP.NET Core API (контроллеры, сервисы, Caching/, Storage/)
-frontend/           React SPA (страницы, api/, компоненты)
-db/                 Скрипты PostgreSQL: схема и seed-данные
-keycloak/           Экспорт realm (автоимпорт при старте контейнера)
-loadtest/           Скрипты нагрузочного тестирования k6
-jstest.json         Коллекция Postman (ручные прогоны, демо кэша)
-docker-compose.yml  PostgreSQL + Keycloak + KeyDB + API + фронт
-.env.example        Образец файла секретов (скопировать в .env)
+backend/ITSchoolCRM.API/   ASP.NET Core API (контроллеры, сервисы, Caching/, Storage/)
+frontend/ITSchoolCRMWEB/   React SPA (страницы, api/, компоненты)
+db/                        Скрипты PostgreSQL (crm-db.sql: схема + seed-данные)
+keycloak/                  Экспорт realm (автоимпорт при старте контейнера)
+loadtest/                  Скрипты нагрузочного тестирования k6
+jstest.json                Коллекция Postman (ручные прогоны, демо кэша)
+docker-compose.yml         PostgreSQL + Keycloak + KeyDB + API + фронт
+.env.example               Образец файла секретов (скопировать в .env)
 ```
 
 ## Документация
