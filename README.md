@@ -21,7 +21,7 @@ CRM-система контроля взаимодействия ИТ Школы
 ## Быстрый старт (полный контур в Docker)
 
 ```bash
-git clone &lt;repo&gt; && cd it-school-crm
+git clone https://github.com/nast-art/itschool-crm.git && cd itschool-crm
 
 # 1. Секреты: создайте .env в корне (образец — .env.example)
 cp .env.example .env
