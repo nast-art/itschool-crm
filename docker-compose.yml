@@ -5,12 +5,19 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: it_school_crm_db
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./db:/docker-entrypoint-initdb.d:ro
     networks:
       - crm-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d it_school_crm_db"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
 
   keycloak:
     image: quay.io/keycloak/keycloak:24.0
@@ -60,12 +67,13 @@ services:
     restart: unless-stopped
     depends_on:
       postgres:
-        condition: service_started
+        condition: service_healthy
       keydb:
         condition: service_healthy
       keycloak:
         condition: service_started
     environment:
+      - ASPNETCORE_ENVIRONMENT=Development
       - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=it_school_crm_db;Username=postgres;Password=${DB_PASSWORD:-postgres}
       - ConnectionStrings__Keydb=keydb:6379,abortConnect=false
       - Keycloak__Authority=http://keycloak:8080/realms/itschool
