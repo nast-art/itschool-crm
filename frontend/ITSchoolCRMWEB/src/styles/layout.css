@@ -1,0 +1,539 @@
+/* ============================================================
+   Каркас внутренних страниц: боковое меню + верхняя панель
+   ============================================================ */
+.shell {
+  display: flex;
+  min-height: 100dvh;
+  background: var(--bg-page);
+}
+
+.nav-toggle { display: none; }
+
+/* ---------- Боковое меню ---------- */
+.sidebar {
+  width: 264px;
+  flex-shrink: 0;
+  background: var(--bg-elevated-1);
+  border-right: 1px solid var(--border-soft);
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 0;
+  height: 100dvh;
+  overflow-y: auto;
+}
+
+.sidebar-logo {
+  padding: 20px 24px 16px;
+  font-weight: 700;
+  font-size: 17px;
+  color: var(--accent-default);
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.sidebar-nav {
+  flex: 1;
+  padding: 16px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.side-group-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--fg-soft);
+  text-transform: uppercase;
+}
+
+.side-group-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-bg);
+  color: var(--accent-default);
+}
+
+.side-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.side-link {
+  display: block;
+  padding: 9px 12px 9px 50px;
+  border-radius: var(--radius-sm);
+  color: var(--fg-soft);
+  text-decoration: none;
+  font-size: 14px;
+  transition: var(--transition-fast);
+}
+
+.side-link:hover {
+  background: var(--accent-bg);
+  color: var(--fg-default);
+}
+
+.side-link.active {
+  background: var(--accent-bg);
+  color: var(--accent-hover);
+  font-weight: 600;
+  box-shadow: inset 3px 0 0 var(--accent-default);
+}
+
+.sidebar-footer {
+  padding: 16px 24px;
+  border-top: 1px solid var(--border-soft);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--fg-muted);
+}
+
+/* ---------- Область контента ---------- */
+.shell-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.shell-content {
+  flex: 1;
+  width: min(1280px, 100%);
+  margin: 0 auto;
+  padding: 24px 28px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* ---------- Верхняя панель ---------- */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 12px 28px;
+  background: var(--bg-elevated-1);
+  border-bottom: 1px solid var(--border-soft);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.topbar-burger {
+  display: none;
+  color: var(--fg-default);
+  cursor: pointer;
+}
+
+.topbar-title {
+  margin: 0;
+  font-size: 20px;
+  min-width: 140px;
+}
+
+.topbar-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  max-width: 420px;
+  padding: 0 14px;
+  height: 40px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-pill);
+  background: var(--bg-surface-2);
+  color: var(--fg-muted);
+  transition: var(--transition-fast);
+}
+
+.topbar-search:focus-within {
+  border-color: var(--accent-default);
+  background: var(--bg-elevated-1);
+  box-shadow: 0 0 0 4px var(--accent-focus-ring);
+}
+
+.topbar-search input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--fg-default);
+}
+
+.topbar-search input::placeholder { color: var(--fg-disabled); }
+
+.topbar-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.topbar-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Подсказка при наведении («УВЕДОМЛЕНИЯ», «ПРОФИЛЬ») */
+.topbar-hint {
+  position: absolute;
+  top: calc(100% + 8px);
+  padding: 4px 10px;
+  border-radius: var(--radius-xs);
+  background: var(--static-black);
+  color: var(--static-white);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-4px);
+  transition: var(--transition-fast);
+  z-index: 30;
+}
+
+.topbar-item:hover .topbar-hint {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.icon-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--fg-soft);
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.icon-btn:hover {
+  background: var(--accent-bg);
+  color: var(--accent-default);
+}
+
+.icon-badge {
+  position: absolute;
+  top: 2px;
+  right: 0;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-default);
+  color: var(--fg-on-accent);
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.profile-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: var(--radius-pill);
+  transition: var(--transition-fast);
+  color: var(--fg-default);
+  font-family: inherit;
+}
+
+.profile-btn:hover { background: var(--accent-bg); }
+
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(135deg, var(--accent-default), var(--accent-soft));
+  color: var(--fg-on-accent);
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.profile-name {
+  font-size: 14px;
+  font-weight: 600;
+  max-width: 180px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---------- Уведомления: панель со скроллом и аккуратная компоновка ---------- */
+
+/* Панель: фиксированная ширина, высота ограничена — скролл ВНУТРИ
+списка, а не растягивание на весь экран */
+.dropdown--notifications {
+  width: 340px;
+  max-width: calc(100vw - 24px);   /* на телефоне панель не шире экрана */
+  max-height: 420px;
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+}
+
+/* Заголовок не скроллится: «УВЕДОМЛЕНИЯ» + «Прочитать все» справа */
+.dropdown-title--row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.notif-readall {
+  border: none;
+  background: transparent;
+  padding: 4px 8px;
+  border-radius: var(--radius-xs);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-default);
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.notif-readall:hover {
+  background: var(--accent-bg);
+  color: var(--accent-hover);
+}
+
+/* Список — единственная скроллящаяся часть */
+.dropdown-list {
+  overflow-y: auto;
+  min-height: 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--neutral-border) transparent;
+}
+
+.dropdown-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.dropdown-list::-webkit-scrollbar-thumb {
+  background: var(--neutral-border);
+  border-radius: var(--radius-pill);
+}
+
+/* ---------- Элемент уведомления ---------- */
+
+.notif {
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border-bottom: 1px solid var(--border-soft);
+  cursor: default;
+  transition: var(--transition-fast);
+}
+
+.notif:last-child {
+  border-bottom: none;
+}
+
+/* Непрочитанное: мягкая подложка + акцентная риска слева —
+то же языко, что активный пункт меню */
+.notif.is-unread {
+  background: var(--accent-bg);
+  box-shadow: inset 3px 0 0 var(--accent-default);
+}
+
+.notif[role='button'] {
+  cursor: pointer;
+}
+
+.notif[role='button']:hover {
+  background: var(--accent-bg-strong);
+}
+
+/* Служебная строка: метка типа слева, время справа */
+.notif-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.notif-type {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--accent-hover);
+}
+
+.notif-time {
+  font-size: 12px;
+  color: var(--fg-muted);
+  white-space: nowrap;
+}
+
+/* Заголовок — отдельной строкой, без слипания с меткой */
+.notif-title {
+  margin: 0 0 2px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--fg-default);
+}
+
+/* Текст — максимум 2 строки, обрезка многоточием;
+полный текст доступен по наведению (title) */
+.notif-text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--fg-soft);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Кликабельность уведомления с link */
+.notif[role='button']:hover .notif-title {
+  color: var(--accent-hover);
+}
+
+/* ---------- Мобильное боковое меню: закрытие ---------- */
+
+/* Затемнение фона при открытом меню — клик по нему закрывает меню */
+.nav-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(16, 16, 20, 0.45);
+  z-index: 45;
+}
+
+.shell:has(.nav-toggle:checked) .nav-overlay { display: block; }
+
+/* Крестик закрытия в шапке бокового меню (только на мобильных) */
+.sidebar-close {
+  display: none;
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 36px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-pill);
+  background: var(--accent-bg);
+  color: var(--accent-hover);
+  font-size: 16px;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.sidebar-close:hover { background: var(--accent-bg-strong); }
+
+/* ============================================================
+   Off-canvas-режим бокового меню
+   Включается только на действительно узких экранах (≤860px).
+   Причина: CSS-viewport зависит от масштаба Windows/зума браузера,
+   из-за чего порог 1024px срабатывал на обычных мониторах.
+   ============================================================ */
+@media (min-width: 861px) {
+  /* Десктоп: меню всегда на месте, гамбургер и подложка скрыты */
+  .sidebar {
+    position: sticky;
+    transform: none;
+    box-shadow: none;
+  }
+
+  .topbar-burger { display: none; }
+
+  .shell:has(.nav-toggle:checked) .nav-overlay { display: none; }
+}
+
+@media (max-width: 860px) {
+  /* Мобильные/узкие: меню за экраном, открывается гамбургером.
+     position: relative нужен для позиционирования крестика. */
+  .sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    z-index: 50;              /* ← вот эта строка обязательна */
+    transform: translateX(-100%);
+    transition: transform var(--motion-duration-m) var(--motion-easing-productive-standard);
+    box-shadow: var(--shadow-modal);
+  }
+
+  .sidebar-close { display: inline-flex; }
+
+  .shell:has(.nav-toggle:checked) .sidebar { transform: translateX(0); }
+
+  .topbar-burger { display: inline-flex; }
+
+  .shell-content { padding: 20px 16px 32px; }
+  .topbar { padding: 10px 16px; }
+  .profile-name { display: none; }
+}
+
+/* Фикс: боковое меню поверх затемнения */
+@media (max-width: 860px) {
+  .sidebar { z-index: 50; }
+}
+
+/* ---------- Мелкие правки ---------- */
+
+/* Очень узкие экраны: поиск в топбаре не должен вытеснять
+   колокольчик и аватар — прячем его целиком (поиск есть
+   на самих страницах: вузы, договоры, ответственные);
+   заголовок страницы ужимается по содержимому */
+@media (max-width: 480px) {
+  .topbar-search {
+    display: none;
+  }
+
+  .topbar-title {
+    min-width: 0;
+    font-size: 17px;
+  }
+
+  .topbar {
+    gap: 10px;
+  }
+
+  .topbar-right {
+    gap: 8px;
+  }
+
+  /* Панель уведомлений во всю доступную ширину экрана */
+  .dropdown--notifications {
+    width: calc(100vw - 24px);
+  }
+}

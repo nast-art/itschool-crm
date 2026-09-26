@@ -9,26 +9,25 @@ namespace ITSchoolCRM.API.Services.Implementations;
 
 /// <summary>
 /// Сервис справочника ИТ-программ.
-///
+/// </summary>
+/// <remarks>
 /// КЭШИРОВАНИЕ (KeyDB, cache-aside):
 ///   - GetAllAsync / GetActiveAsync → по ДВА ключа на метод:
 ///     общий (все программы) и per-direction (фильтр directionId).
-///     Оба без скопа пользователя — выборки не фильтруются
-///     по доступу. Отдельные ключи обязательны: общий ключ под
-///     фильтрованной выборкой дал бы либо промахи, либо
-///     неверные данные;
+///     Оба без скопа пользователя — выборки не фильтруются по доступу.
+///     Отдельные ключи обязательны: общий ключ под фильтрованной
+///     выборкой дал бы либо промахи, либо неверные данные;
 ///   - GetByIdAsync → без кэша: точечный вызов, выигрыш нулевой;
-///   - SearchAsync → без кэша осознанно: подстрока на каждую
-///     клавишу — это поток одноразовых ключей.
+///   - SearchAsync → без кэша осознанно: подстрока на каждую клавишу —
+///     это поток одноразовых ключей.
 ///
-/// ИНВАЛИДАЦИЯ: Create/Update/Delete после SaveChangesAsync делают
-/// два INCR:
+/// ИНВАЛИДАЦИЯ: Create/Update/Delete после SaveChangesAsync делают два INCR:
 ///   - catalog:version — сами справочники программ;
 ///   - interaction:version — имя программы проецируется в
-///     InteractionDto.ProgramName и отображается в списках,
-///     карточках и отчётах. При смене direction_id у программы
-///     меняется и агрегат ByDirection статистики — тот же счётчик.
-/// </summary>
+///     InteractionDto.ProgramName и отображается в списках, карточках
+///     и отчётах. При смене direction_id у программы меняется и агрегат
+///     ByDirection статистики — тот же счётчик.
+/// </remarks>
 public class ProgramService : IProgramService
 {
     private readonly CrmDbContext _context;
@@ -50,16 +49,23 @@ public class ProgramService : IProgramService
     /// справочники и всё, где имя программы отображается
     /// (взаимодействия, статистика, отчёты).
     /// </summary>
-    private async Task InvalidateProgramsAsync(
-        CancellationToken cancellationToken)
+    private async Task InvalidateProgramsAsync(CancellationToken cancellationToken)
     {
-        await _cache.BumpVersionAsync(
-            CacheKeys.CatalogVersion,
-            cancellationToken);
+        await _cache.BumpVersionAsync(CacheKeys.CatalogVersion, cancellationToken);
+        await _cache.BumpVersionAsync(CacheKeys.InteractionVersionKey, cancellationToken);
+    }
 
-        await _cache.BumpVersionAsync(
-            CacheKeys.InteractionVersionKey,
-            cancellationToken);
+    // Единая проекция сущности -> DTO
+    private static IQueryable<ProgramDto> ProjectToDto(IQueryable<it_program> query)
+    {
+        return query.Select(x => new ProgramDto
+        {
+            Id = x.it_programs_id,
+            DirectionId = x.direction_id,
+            Name = x.name,
+            Description = x.description,
+            IsActive = x.is_active
+        });
     }
 
     public async Task<List<ProgramDto>> GetAllAsync(
@@ -73,74 +79,47 @@ public class ProgramService : IProgramService
         if (directionId.HasValue)
         {
             return await _cache.GetOrCreateAsync(
-                CacheKeys.Catalog(
-                    $"catalog:programs:direction:{directionId.Value}"),
+                CacheKeys.Catalog($"catalog:programs:direction:{directionId.Value}"),
                 _cacheOptions.CatalogTtl,
-                _ => LoadAllFromDatabaseAsync(
-                    directionId,
-                    cancellationToken),
+                _ => LoadAllFromDatabaseAsync(directionId, cancellationToken),
                 cancellationToken);
         }
 
         return await _cache.GetOrCreateAsync(
             CacheKeys.Catalog(CacheKeys.Programs),
             _cacheOptions.CatalogTtl,
-            _ => LoadAllFromDatabaseAsync(
-                null,
-                cancellationToken),
+            _ => LoadAllFromDatabaseAsync(null, cancellationToken),
             cancellationToken);
     }
 
-    /// <summary>Исходная выборка программ (бывшее тело GetAllAsync).</summary>
+    /// <summary>Выборка программ из БД (промах кэша).</summary>
     private async Task<List<ProgramDto>> LoadAllFromDatabaseAsync(
         int? directionId,
         CancellationToken cancellationToken)
     {
-        var query = _context.it_programs
-            .AsNoTracking()
-            .AsQueryable();
+        var query = _context.it_programs.AsNoTracking().AsQueryable();
 
         if (directionId.HasValue)
         {
-            query = query.Where(
-                x => x.direction_id == directionId.Value);
+            query = query.Where(x => x.direction_id == directionId.Value);
         }
 
-        return await query
-            .Select(x => new ProgramDto
-            {
-                Id = x.it_programs_id,
-                DirectionId = x.direction_id,
-                Name = x.name,
-                Description = x.description,
-                IsActive = x.is_active
-            })
+        return await ProjectToDto(query)
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<ProgramDto?> GetByIdAsync(
-        int id,
-        CancellationToken cancellationToken)
+    public async Task<ProgramDto?> GetByIdAsync(int id, CancellationToken cancellationToken)
     {
         // БЕЗ КЭША: точечный вызов (карточки, привязки,
         // валидации при создании взаимодействия), обращений мало.
-        return await _context.it_programs
-            .AsNoTracking()
-            .Where(x => x.it_programs_id == id)
-            .Select(x => new ProgramDto
-            {
-                Id = x.it_programs_id,
-                DirectionId = x.direction_id,
-                Name = x.name,
-                Description = x.description,
-                IsActive = x.is_active
-            })
+        return await ProjectToDto(
+                _context.it_programs
+                    .AsNoTracking()
+                    .Where(x => x.it_programs_id == id))
             .FirstOrDefaultAsync(cancellationToken);
     }
 
-    public async Task<ProgramDto> CreateAsync(
-        CreateProgramDto dto,
-        CancellationToken cancellationToken)
+    public async Task<ProgramDto> CreateAsync(CreateProgramDto dto, CancellationToken cancellationToken)
     {
         var program = new it_program
         {
@@ -155,10 +134,9 @@ public class ProgramService : IProgramService
 
         await _context.SaveChangesAsync(cancellationToken);
 
-        // НОВОЕ (кэш): программа появилась в общем списке, списке
-        // своего направления и в выборках взаимодействий. Возвращаемый
-        // DTO собираем руками — он свежий по определению, лишний
-        // запрос через GetByIdAsync не нужен.
+        // Программа появилась в общем списке, списке своего направления
+        // и в выборках взаимодействий. DTO собираем руками — он свежий
+        // по определению, лишний запрос через GetByIdAsync не нужен.
         await InvalidateProgramsAsync(cancellationToken);
 
         return new ProgramDto
@@ -171,15 +149,10 @@ public class ProgramService : IProgramService
         };
     }
 
-    public async Task<bool> UpdateAsync(
-        int id,
-        UpdateProgramDto dto,
-        CancellationToken cancellationToken)
+    public async Task<bool> UpdateAsync(int id, UpdateProgramDto dto, CancellationToken cancellationToken)
     {
         var program = await _context.it_programs
-            .FirstOrDefaultAsync(
-                x => x.it_programs_id == id,
-                cancellationToken);
+            .FirstOrDefaultAsync(x => x.it_programs_id == id, cancellationToken);
 
         if (program is null)
         {
@@ -194,37 +167,32 @@ public class ProgramService : IProgramService
 
         await _context.SaveChangesAsync(cancellationToken);
 
-        // НОВОЕ (кэш): могли измениться имя (списки, карточки,
-        // отчёты), активность (GetActiveAsync и фильтры фронта)
-        // и direction_id (перепривязка к другому направлению —
-        // меняется и группировка в статистике ByDirection).
+        // Могли измениться имя (списки, карточки, отчёты), активность
+        // (GetActiveAsync и фильтры фронта) и direction_id (перепривязка
+        // к другому направлению — меняется группировка в ByDirection).
         await InvalidateProgramsAsync(cancellationToken);
 
         return true;
     }
 
-    public async Task<bool> DeleteAsync(
-        int id,
-        CancellationToken cancellationToken)
+    public async Task<bool> DeleteAsync(int id, CancellationToken cancellationToken)
     {
         var program = await _context.it_programs
-            .FirstOrDefaultAsync(
-                x => x.it_programs_id == id,
-                cancellationToken);
+            .FirstOrDefaultAsync(x => x.it_programs_id == id, cancellationToken);
 
         if (program is null)
         {
             return false;
         }
 
+        // Мягкое удаление: строка остаётся (аудит, история), снимаем активность
         program.is_active = false;
         program.updated_at = DateTime.UtcNow;
 
         await _context.SaveChangesAsync(cancellationToken);
 
-        // НОВОЕ (кэш): деактивация меняет общий список, список
-        // активных и списки взаимодействий (программа перестала
-        // быть доступной для новых привязок).
+        // Деактивация меняет общий список, список активных и списки
+        // взаимодействий (программа перестала быть доступной для новых привязок)
         await InvalidateProgramsAsync(cancellationToken);
 
         return true;
@@ -235,30 +203,23 @@ public class ProgramService : IProgramService
         CancellationToken cancellationToken)
     {
         // Два ключа, как в GetAllAsync: общий и per-direction.
-        // Составы выборок различаются (is_active-фильтр),
-        // ключи от GetAllAsync тоже разные.
         if (directionId.HasValue)
         {
             return await _cache.GetOrCreateAsync(
-                CacheKeys.Catalog(
-                    $"catalog:active-programs:direction:{directionId.Value}"),
+                CacheKeys.Catalog($"catalog:active-programs:direction:{directionId.Value}"),
                 _cacheOptions.CatalogTtl,
-                _ => LoadActiveFromDatabaseAsync(
-                    directionId,
-                    cancellationToken),
+                _ => LoadActiveFromDatabaseAsync(directionId, cancellationToken),
                 cancellationToken);
         }
 
         return await _cache.GetOrCreateAsync(
             CacheKeys.Catalog("catalog:active-programs"),
             _cacheOptions.CatalogTtl,
-            _ => LoadActiveFromDatabaseAsync(
-                null,
-                cancellationToken),
+            _ => LoadActiveFromDatabaseAsync(null, cancellationToken),
             cancellationToken);
     }
 
-    /// <summary>Исходная выборка активных программ (бывшее тело GetActiveAsync).</summary>
+    /// <summary>Выборка активных программ из БД (промах кэша).</summary>
     private async Task<List<ProgramDto>> LoadActiveFromDatabaseAsync(
         int? directionId,
         CancellationToken cancellationToken)
@@ -270,19 +231,10 @@ public class ProgramService : IProgramService
 
         if (directionId.HasValue)
         {
-            query = query.Where(
-                x => x.direction_id == directionId.Value);
+            query = query.Where(x => x.direction_id == directionId.Value);
         }
 
-        return await query
-            .Select(x => new ProgramDto
-            {
-                Id = x.it_programs_id,
-                DirectionId = x.direction_id,
-                Name = x.name,
-                Description = x.description,
-                IsActive = x.is_active
-            })
+        return await ProjectToDto(query)
             .ToListAsync(cancellationToken);
     }
 
@@ -295,14 +247,11 @@ public class ProgramService : IProgramService
         // клавишу — каждая комбинация (search, directionId) это новый
         // одноразовый ключ. Кэш одноразовых значений — утечка памяти
         // KeyDB под значения, которые никто не прочитает.
-        var query = _context.it_programs
-            .AsNoTracking()
-            .AsQueryable();
+        var query = _context.it_programs.AsNoTracking().AsQueryable();
 
         if (directionId.HasValue)
         {
-            query = query.Where(
-                x => x.direction_id == directionId.Value);
+            query = query.Where(x => x.direction_id == directionId.Value);
         }
 
         if (!string.IsNullOrWhiteSpace(search))
@@ -314,15 +263,7 @@ public class ProgramService : IProgramService
                 x.name.ToLower().Contains(search.ToLower()));
         }
 
-        return await query
-            .Select(x => new ProgramDto
-            {
-                Id = x.it_programs_id,
-                DirectionId = x.direction_id,
-                Name = x.name,
-                Description = x.description,
-                IsActive = x.is_active
-            })
+        return await ProjectToDto(query)
             .ToListAsync(cancellationToken);
     }
 }

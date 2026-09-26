@@ -10,7 +10,8 @@ namespace ITSchoolCRM.API.Services.Implementations;
 
 /// <summary>
 /// Сервис справочника вузов.
-///
+/// </summary>
+/// <remarks>
 /// КЭШИРОВАНИЕ (KeyDB, cache-aside):
 ///   - GetAllAsync / GetActiveAsync → список СО СКОПОМ текущего
 ///     пользователя: выборка фильтруется по university_managers,
@@ -26,9 +27,8 @@ namespace ITSchoolCRM.API.Services.Implementations;
 ///   - catalog:version — все справочники (название вуза светится
 ///     и в списках взаимодействий, и в отчётах);
 ///   - interaction:version — все взаимодействия и агрегаты
-///     статистики (byUniversity). Счётчики обновляются за
-///     миллисекунды, искать «затронутые» ключи не нужно.
-/// </summary>
+///     статистики (byUniversity).
+/// </remarks>
 public class UniversityService : IUniversityService
 {
     private readonly CrmDbContext _context;
@@ -68,20 +68,25 @@ public class UniversityService : IUniversityService
     /// взаимодействия и статистика (в них отображаются названия
     /// вузов и агрегируются по ним).
     /// </summary>
-    private async Task InvalidateCatalogAsync(
-        CancellationToken cancellationToken)
+    private async Task InvalidateCatalogAsync(CancellationToken cancellationToken)
     {
-        await _cache.BumpVersionAsync(
-            CacheKeys.CatalogVersion,
-            cancellationToken);
-
-        await _cache.BumpVersionAsync(
-            CacheKeys.InteractionVersionKey,
-            cancellationToken);
+        await _cache.BumpVersionAsync(CacheKeys.CatalogVersion, cancellationToken);
+        await _cache.BumpVersionAsync(CacheKeys.InteractionVersionKey, cancellationToken);
     }
 
-    public async Task<List<UniversityDto>> GetAllAsync(
-        CancellationToken cancellationToken)
+    // Единая проекция сущности -> DTO
+    private static IQueryable<UniversityDto> ProjectToDto(IQueryable<university> query)
+    {
+        return query.Select(x => new UniversityDto
+        {
+            Id = x.universities_id,
+            Name = x.name,
+            ShortName = x.short_name,
+            IsActive = x.is_active
+        });
+    }
+
+    public async Task<List<UniversityDto>> GetAllAsync(CancellationToken cancellationToken)
     {
         var scope = CurrentCacheScope;
 
@@ -90,298 +95,179 @@ public class UniversityService : IUniversityService
         // кэшировать нечего — идём в БД напрямую.
         if (scope is null)
         {
-            return await LoadAllFromDatabaseAsync(
-                cancellationToken);
+            return await LoadAllFromDatabaseAsync(cancellationToken);
         }
 
         return await _cache.GetOrCreateAsync(
-            CacheKeys.CatalogForScope(
-                CacheKeys.Universities,
-                scope),
+            CacheKeys.CatalogForScope(CacheKeys.Universities, scope),
             _cacheOptions.CatalogTtl,
-            _ => LoadAllFromDatabaseAsync(
-                cancellationToken),
+            _ => LoadAllFromDatabaseAsync(cancellationToken),
             cancellationToken);
     }
 
     /// <summary>
-    /// Исходная выборка списка (бывшее тело GetAllAsync).
-    /// Фильтрация по доступу внутри — кэш хранит УЖЕ
-    /// отфильтрованный по university_managers набор.
+    /// Выборка списка из БД (промах кэша). Фильтрация по доступу
+    /// внутри — кэш хранит УЖЕ отфильтрованный по university_managers набор.
     /// </summary>
-    private async Task<List<UniversityDto>> LoadAllFromDatabaseAsync(
-        CancellationToken cancellationToken)
+    private async Task<List<UniversityDto>> LoadAllFromDatabaseAsync(CancellationToken cancellationToken)
     {
-        var accessibleUniversityIds =
-            _accessService.GetAccessibleUniversityIds();
+        var accessibleUniversityIds = _accessService.GetAccessibleUniversityIds();
 
-        return await _context.universities
-            .AsNoTracking()
-            .Where(x =>
-                accessibleUniversityIds.Contains(
-                    x.universities_id))
-            .Select(x => new UniversityDto
-            {
-                Id = x.universities_id,
-
-                Name = x.name,
-
-                ShortName = x.short_name,
-
-                IsActive = x.is_active
-            })
+        return await ProjectToDto(
+                _context.universities
+                    .AsNoTracking()
+                    .Where(x => accessibleUniversityIds.Contains(x.universities_id)))
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<UniversityDto?> GetByIdAsync(
-        int id,
-        CancellationToken cancellationToken)
+    public async Task<UniversityDto?> GetByIdAsync(int id, CancellationToken cancellationToken)
     {
         // БЕЗ КЭША: метод вызывается точечно (карточки, привязки),
         // а ключ пришлось бы строить с учётом доступа текущего
         // пользователя — выигрыш нулевой, сложность лишняя.
-        // Доступ проверяем как раньше.
-        var accessible =
-            await _accessService
-                .HasAccessToUniversityAsync(
-                    id,
-                    cancellationToken);
+        var accessible = await _accessService
+            .HasAccessToUniversityAsync(id, cancellationToken);
 
         if (!accessible)
         {
             return null;
         }
 
-        return await _context.universities
-            .AsNoTracking()
-            .Where(x =>
-                x.universities_id == id)
-            .Select(x => new UniversityDto
-            {
-                Id = x.universities_id,
-
-                Name = x.name,
-
-                ShortName = x.short_name,
-
-                IsActive = x.is_active
-            })
-            .FirstOrDefaultAsync(
-                cancellationToken);
+        return await ProjectToDto(
+                _context.universities
+                    .AsNoTracking()
+                    .Where(x => x.universities_id == id))
+            .FirstOrDefaultAsync(cancellationToken);
     }
 
-    public async Task<List<UniversityDto>> GetActiveAsync(
-        CancellationToken cancellationToken)
+    public async Task<List<UniversityDto>> GetActiveAsync(CancellationToken cancellationToken)
     {
         var scope = CurrentCacheScope;
 
         if (scope is null)
         {
-            return await LoadActiveFromDatabaseAsync(
-                cancellationToken);
+            return await LoadActiveFromDatabaseAsync(cancellationToken);
         }
 
         // Отдельный ключ от GetAllAsync: составы выборок различаются
         // (is_active-фильтр), общий ключ дал бы промахи.
         return await _cache.GetOrCreateAsync(
-            CacheKeys.CatalogForScope(
-                "catalog:active-universities",
-                scope),
+            CacheKeys.CatalogForScope("catalog:active-universities", scope),
             _cacheOptions.CatalogTtl,
-            _ => LoadActiveFromDatabaseAsync(
-                cancellationToken),
+            _ => LoadActiveFromDatabaseAsync(cancellationToken),
             cancellationToken);
     }
 
-    /// <summary>Исходная выборка активных вузов (бывшее тело GetActiveAsync).</summary>
-    private async Task<List<UniversityDto>> LoadActiveFromDatabaseAsync(
-        CancellationToken cancellationToken)
+    /// <summary>Выборка активных вузов из БД (промах кэша).</summary>
+    private async Task<List<UniversityDto>> LoadActiveFromDatabaseAsync(CancellationToken cancellationToken)
     {
-        var accessibleUniversityIds =
-            _accessService.GetAccessibleUniversityIds();
+        var accessibleUniversityIds = _accessService.GetAccessibleUniversityIds();
 
-        return await _context.universities
-            .AsNoTracking()
-            .Where(x =>
-                x.is_active == true
-                &&
-                accessibleUniversityIds.Contains(
-                    x.universities_id))
-            .Select(x => new UniversityDto
-            {
-                Id = x.universities_id,
-
-                Name = x.name,
-
-                ShortName = x.short_name,
-
-                IsActive = x.is_active
-            })
+        return await ProjectToDto(
+                _context.universities
+                    .AsNoTracking()
+                    .Where(x =>
+                        x.is_active == true &&
+                        accessibleUniversityIds.Contains(x.universities_id)))
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<List<UniversityDto>> SearchAsync(
-        string? search,
-        CancellationToken cancellationToken)
+    public async Task<List<UniversityDto>> SearchAsync(string? search, CancellationToken cancellationToken)
     {
         // БЕЗ КЭША ОСОЗНАННО: поиск из верхней панели (Topbar)
-        // выполняется на каждую клавишу. Подстрока "м", "мг",
-        // "мгу" — три разных ключа, все протухнут через TTL
-        // неиспользованными. Кэш тут вреден: чистили бы память
-        // KeyDB под одноразовые значения.
-        var accessibleUniversityIds =
-            _accessService.GetAccessibleUniversityIds();
+        // выполняется на каждую клавишу. Подстрока "м", "мг", "мгу" —
+        // три разных ключа, все протухнут через TTL неиспользованными.
+        // Кэш тут вреден: чистили бы память KeyDB под одноразовые значения.
+        var accessibleUniversityIds = _accessService.GetAccessibleUniversityIds();
 
         var query = _context.universities
             .AsNoTracking()
-            .Where(x =>
-                accessibleUniversityIds.Contains(
-                    x.universities_id))
+            .Where(x => accessibleUniversityIds.Contains(x.universities_id))
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(search))
         {
-            search = search.Trim();
-
-            var lowerSearch =
-                search.ToLower();
+            var lowerSearch = search.Trim().ToLower();
 
             query = query.Where(x =>
-                (x.name != null &&
-                 x.name.ToLower()
-                    .Contains(lowerSearch))
-
-                ||
-
-                (x.short_name != null &&
-                 x.short_name.ToLower()
-                    .Contains(lowerSearch)));
+                (x.name != null && x.name.ToLower().Contains(lowerSearch)) ||
+                (x.short_name != null && x.short_name.ToLower().Contains(lowerSearch)));
         }
 
-        return await query
-            .Select(x => new UniversityDto
-            {
-                Id = x.universities_id,
-
-                Name = x.name,
-
-                ShortName = x.short_name,
-
-                IsActive = x.is_active
-            })
-            .ToListAsync(
-                cancellationToken);
+        return await ProjectToDto(query)
+            .ToListAsync(cancellationToken);
     }
 
-    public async Task<UniversityDto> CreateAsync(
-        CreateUniversityDto dto,
-        CancellationToken cancellationToken)
+    public async Task<UniversityDto> CreateAsync(CreateUniversityDto dto, CancellationToken cancellationToken)
     {
         var university = new university
         {
             name = dto.Name,
-
             short_name = dto.ShortName,
-
             is_active = true,
-
             created_at = DateTime.UtcNow
         };
 
-        _context.universities.Add(
-            university);
+        _context.universities.Add(university);
 
-        await _context.SaveChangesAsync(
-            cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
 
-        // НОВОЕ (кэш): вуз появился в справочниках, списках
-        // взаимодействий и агрегатах статистики. Возвращаемый
-        // DTO собираем руками (а не через GetByIdAsync, чтобы
+        // Вуз появился в справочниках, списках взаимодействий и агрегатах
+        // статистики. DTO собираем руками (а не через GetByIdAsync, чтобы
         // не делать лишний запрос) — он свежий по определению.
-        await InvalidateCatalogAsync(
-            cancellationToken);
+        await InvalidateCatalogAsync(cancellationToken);
 
         return new UniversityDto
         {
             Id = university.universities_id,
-
             Name = university.name,
-
             ShortName = university.short_name,
-
             IsActive = university.is_active
         };
     }
 
-    public async Task<bool> UpdateAsync(
-        int id,
-        UpdateUniversityDto dto,
-        CancellationToken cancellationToken)
+    public async Task<bool> UpdateAsync(int id, UpdateUniversityDto dto, CancellationToken cancellationToken)
     {
-        var university =
-            await _context.universities
-                .FirstOrDefaultAsync(
-                    x =>
-                        x.universities_id == id,
-                    cancellationToken);
+        var university = await _context.universities
+            .FirstOrDefaultAsync(x => x.universities_id == id, cancellationToken);
 
         if (university is null)
         {
             return false;
         }
 
-        university.name =
-            dto.Name;
+        university.name = dto.Name;
+        university.short_name = dto.ShortName;
+        university.is_active = dto.IsActive;
+        university.updated_at = DateTime.UtcNow;
 
-        university.short_name =
-            dto.ShortName;
+        await _context.SaveChangesAsync(cancellationToken);
 
-        university.is_active =
-            dto.IsActive;
-
-        university.updated_at =
-            DateTime.UtcNow;
-
-        await _context.SaveChangesAsync(
-            cancellationToken);
-
-        // НОВОЕ (кэш): изменилось название или активность —
-        // справочники, списки взаимодействий и статистика
-        // показывают старые значения.
-        await InvalidateCatalogAsync(
-            cancellationToken);
+        // Изменилось название или активность — справочники, списки
+        // взаимодействий и статистика показывали бы старые значения.
+        await InvalidateCatalogAsync(cancellationToken);
 
         return true;
     }
 
-    public async Task<bool> DeleteAsync(
-        int id,
-        CancellationToken cancellationToken)
+    public async Task<bool> DeleteAsync(int id, CancellationToken cancellationToken)
     {
-        var university =
-            await _context.universities
-                .FirstOrDefaultAsync(
-                    x =>
-                        x.universities_id == id,
-                    cancellationToken);
+        var university = await _context.universities
+            .FirstOrDefaultAsync(x => x.universities_id == id, cancellationToken);
 
         if (university is null)
         {
             return false;
         }
 
+        // Мягкое удаление: строка остаётся (аудит, история), снимаем активность
         university.is_active = false;
+        university.updated_at = DateTime.UtcNow;
 
-        university.updated_at =
-            DateTime.UtcNow;
+        await _context.SaveChangesAsync(cancellationToken);
 
-        await _context.SaveChangesAsync(
-            cancellationToken);
-
-        // НОВОЕ (кэш): деактивация меняет и GetActiveAsync,
-        // и все списки, где вуз отображался.
-        await InvalidateCatalogAsync(
-            cancellationToken);
+        // Деактивация меняет и GetActiveAsync, и все списки, где вуз отображался
+        await InvalidateCatalogAsync(cancellationToken);
 
         return true;
     }

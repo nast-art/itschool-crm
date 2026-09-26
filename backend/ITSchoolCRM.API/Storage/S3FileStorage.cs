@@ -4,18 +4,16 @@ using Amazon.S3.Model;
 namespace ITSchoolCRM.API.Storage;
 
 /// <summary>
-/// Хранение вложений в S3-совместимом объектном хранилище
-/// (рекомендация заказчика 16.09.2026 13:10).
-///
-/// КЛЮЧИ: тот же формат, что у DiskFileStorage
-/// ("uploads/attachments/{interactionId}/{statusId}/{guid}_{name}") —
-/// существующие storage_path из БД остаются валидными ключами
-/// бакета без миграции данных (S3 допускает такие ключи;
-/// ведущий слэш не требуется).
+/// Хранение вложений в S3-совместимом объектном хранилище (Yandex Cloud S3).
+/// </summary>
+/// <remarks>
+/// КЛЮЧИ: "uploads/attachments/{interactionId}/{statusId}/{guid}_{name}" —
+/// существующие storage_path из БД остаются валидными ключами бакета
+/// без миграции данных (S3 допускает такие ключи, ведущий слэш не требуется).
 ///
 /// ПЕРЕКЛЮЧЕНИЕ: одна строка в Program.cs
-/// (AddSingleton<IFileStorage, S3FileStorage>()).
-/// </summary>
+/// (AddSingleton&lt;IFileStorage, S3FileStorage&gt;()).
+/// </remarks>
 public sealed class S3FileStorage : IFileStorage
 {
     private readonly IAmazonS3 _client;
@@ -31,7 +29,7 @@ public sealed class S3FileStorage : IFileStorage
 
         var config = new AmazonS3Config
         {
-            ServiceURL = section["ServiceUrl"],   // для S3-совместимых (MinIO, VK Cloud, Yandex)
+            ServiceURL = section["ServiceUrl"], // для S3-совместимых (Yandex, MinIO, VK Cloud)
             AuthenticationRegion = section["Region"],
             ForcePathStyle = section.GetValue<bool>("ForcePathStyle"), // true для MinIO
         };
@@ -42,11 +40,7 @@ public sealed class S3FileStorage : IFileStorage
             config);
     }
 
-    public async Task<string> SaveAsync(
-        Stream content,
-        string key,
-        string contentType,
-        CancellationToken cancellationToken)
+    public async Task<string> SaveAsync(Stream content, string key, string contentType, CancellationToken cancellationToken)
     {
         var request = new PutObjectRequest
         {
@@ -56,23 +50,16 @@ public sealed class S3FileStorage : IFileStorage
             ContentType = contentType,
         };
 
-        await _client.PutObjectAsync(
-            request,
-            cancellationToken);
+        await _client.PutObjectAsync(request, cancellationToken);
 
         return key;
     }
 
-    public async Task<Stream?> OpenReadAsync(
-        string key,
-        CancellationToken cancellationToken)
+    public async Task<Stream?> OpenReadAsync(string key, CancellationToken cancellationToken)
     {
         try
         {
-            var response = await _client.GetObjectAsync(
-                _bucket,
-                key,
-                cancellationToken);
+            var response = await _client.GetObjectAsync(_bucket, key, cancellationToken);
 
             // ResponseStream живёт, пока жив response —
             // оборачиваем, чтобы dispose потока закрывал и ответ
@@ -84,26 +71,19 @@ public sealed class S3FileStorage : IFileStorage
         }
     }
 
-    public async Task DeleteAsync(
-        string key,
-        CancellationToken cancellationToken)
+    public async Task DeleteAsync(string key, CancellationToken cancellationToken)
     {
-        // NoSuchKey — не ошибка: метаданные из БД удаляются
-        // в любом случае
+        // NoSuchKey — не ошибка: метаданные из БД удаляются в любом случае
         try
         {
-            await _client.DeleteObjectAsync(
-                _bucket,
-                key,
-                cancellationToken);
+            await _client.DeleteObjectAsync(_bucket, key, cancellationToken);
         }
         catch (AmazonS3Exception ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
         {
         }
     }
 
-    public async Task<bool> IsHealthyAsync(
-        CancellationToken cancellationToken)
+    public async Task<bool> IsHealthyAsync(CancellationToken cancellationToken)
     {
         try
         {
@@ -154,11 +134,7 @@ public sealed class S3FileStorage : IFileStorage
         public override int Read(byte[] buffer, int offset, int count)
             => _response.ResponseStream.Read(buffer, offset, count);
 
-        public override Task<int> ReadAsync(
-            byte[] buffer,
-            int offset,
-            int count,
-            CancellationToken cancellationToken)
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
             => _response.ResponseStream.ReadAsync(buffer, offset, count, cancellationToken);
 
         public override long Seek(long offset, SeekOrigin origin)

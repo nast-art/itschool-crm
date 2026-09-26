@@ -11,8 +11,7 @@ namespace ITSchoolCRM.API.Middleware
     /// </summary>
     public static class ExceptionHandlingMiddlewareExtensions
     {
-        public static IApplicationBuilder UseGlobalExceptionHandling(
-            this IApplicationBuilder app)
+        public static IApplicationBuilder UseGlobalExceptionHandling(this IApplicationBuilder app)
         {
             return app.UseMiddleware<ExceptionHandlingMiddleware>();
         }

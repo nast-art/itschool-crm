@@ -1,0 +1,268 @@
+/* ============================================================
+   Страница входа/регистрации (по макету: бренд слева, форма справа)
+   ============================================================ */
+.auth-screen {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background:
+    radial-gradient(1000px 500px at 10% -10%, var(--accent-bg), transparent 60%),
+    radial-gradient(800px 400px at 110% 110%, var(--accent-bg-strong), transparent 60%),
+    var(--bg-page);
+}
+
+.auth-shell {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  width: min(1100px, calc(100% - 48px));
+  background: var(--bg-elevated-1);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+}
+
+/* Каскадное появление элементов: заголовок -> статистика -> иллюстрация -> карточка */
+.auth-brand-title,
+.auth-stats,
+.auth-brand-art,
+.auth-card {
+  opacity: 0;
+  animation: rise var(--motion-duration-m) var(--motion-easing-expressive-entrance) forwards;
+}
+
+.auth-brand-title { animation-delay: 0.05s; }
+.auth-stats       { animation-delay: 0.16s; }
+.auth-brand-art   { animation-delay: 0.28s; }
+.auth-card        { animation-delay: 0.12s; }
+
+/* ---------- Левая брендовая панель ---------- */
+.auth-brand {
+  padding: 40px 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 44px;
+  border-right: 1px solid var(--border-soft);
+  background: linear-gradient(160deg, var(--static-white) 55%, var(--accent-bg) 100%);
+}
+
+.auth-brand-title {
+  font-size: clamp(22px, 2.6vw, 30px);
+  line-height: 1.25;
+  margin: 0;
+  color: var(--fg-default);
+}
+
+.auth-brand-title span { color: var(--accent-default); }
+
+.auth-stats {
+  display: flex;
+  justify-content: center;
+  gap: 40px;
+  width: 100%;
+}
+
+.auth-stat { display: flex; flex-direction: column; }
+
+.auth-stat strong {
+  font-size: 30px;
+  color: var(--accent-default);
+}
+
+.auth-stat span {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--fg-muted);
+}
+
+/* Декоративный блок внизу левой панели (по макету — «фон, картинка вузов») */
+.auth-brand-art {
+  border-radius: var(--radius-lg);
+  background: linear-gradient(165deg, var(--accent-bg) 0%, var(--accent-bg-strong) 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 18px 20px 6px;
+  overflow: hidden;
+}
+
+.auth-brand-art p {
+  position: relative;
+  z-index: 1;
+  color: var(--fg-muted);
+  font-size: 13px;
+  padding: 0 16px 16px;
+  text-align: center;
+}
+
+.auth-art {
+  width: 100%;
+  max-width: 420px;
+  height: auto;
+  display: block;
+  animation: float 6s var(--motion-easing-productive-standard) infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-5px); }
+}
+
+/* ---------- Правая панель — форма ---------- */
+.auth-form-side {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 360px;
+  background: var(--bg-elevated-1);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-lg);
+  padding: 36px 32px;
+  box-shadow: var(--shadow-card);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.auth-card h2 {
+  margin: 0 0 6px;
+  font-size: 22px;
+  text-align: center;
+}
+
+/* ---------- Строка из двух связанных полей (Фамилия+Имя, Пароль+Подтверждение) ---------- */
+.field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.auth-card--wide {
+  max-width: 440px;
+}
+
+/* На узком экране пары складываются обратно в одну колонку */
+@media (max-width: 640px) {
+  .field-row { grid-template-columns: 1fr; }
+}
+
+.field-row .password-wrap input { padding-right: 66px; }
+
+.field-row .password-toggle {
+  font-size: 12px;
+  right: 6px;
+  padding: 6px 4px;
+}
+
+.password-wrap { position: relative; }
+
+.password-wrap input { padding-right: 76px; }
+
+.password-toggle {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: transparent;
+  color: var(--accent-default);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: var(--radius-xs);
+  transition: var(--transition-fast);
+}
+
+.password-toggle:hover { background: var(--accent-bg); }
+
+/* ---------- Переключатель вход/регистрация ---------- */
+.auth-switch {
+  margin: 0;
+  text-align: center;
+  font-size: 14px;
+  color: var(--fg-muted);
+}
+
+.auth-switch a {
+  color: var(--accent-default);
+  text-decoration: none;
+  transition: var(--transition-fast);
+}
+
+.auth-switch a:hover { color: var(--accent-hover); text-decoration: underline; }
+
+.auth-register-link {
+  text-align: center;
+  font-size: 14px;
+  color: var(--accent-default);
+  text-decoration: none;
+  transition: var(--transition-fast);
+}
+
+.auth-register-link:hover { color: var(--accent-hover); text-decoration: underline; }
+
+/* Фокус с клавиатуры на элементах формы */
+.btn-primary:focus-visible,
+.btn-ghost:focus-visible,
+.password-toggle:focus-visible,
+.auth-switch a:focus-visible {
+  outline: 2px solid var(--accent-default);
+  outline-offset: 2px;
+}
+
+/* ---------- Адаптивность ---------- */
+/* Низкие по высоте экраны (ноутбуки, маленькие окна): прячем иллюстрацию,
+   чтобы страница входила без прокрутки. Работает только в двухколоночной
+   раскладке — на планшете иллюстрация уже скрыта штатно. */
+@media (min-width: 1025px) and (max-height: 760px) {
+  .auth-brand-art { display: none; }
+  .auth-brand { gap: 36px; }
+}
+
+/* Совсем низкие окна — плюс компактные отступы */
+@media (min-width: 1025px) and (max-height: 560px) {
+  .auth-screen { padding: 12px; }
+  .auth-brand { padding: 24px 32px; gap: 24px; }
+}
+
+/* Планшет и уже: панели друг под другом, форма ограничена по ширине */
+@media (max-width: 1024px) {
+  .auth-screen { padding: 16px; min-height: 100dvh; }
+  .auth-shell {
+    grid-template-columns: 1fr;
+    min-height: auto;
+    width: min(560px, 100%);
+  }
+  .auth-brand {
+    border-right: none;
+    border-bottom: 1px solid var(--border-soft);
+    padding: 32px 28px;
+  }
+  .auth-stats { gap: 32px; }
+  .auth-brand-art { display: none; }
+  .auth-form-side { padding: 28px; }
+  .auth-card { max-width: none; }
+}
+
+/* Мобильный: компактные отступы */
+@media (max-width: 640px) {
+  .auth-screen { padding: 12px; align-items: flex-start; }
+  .auth-shell { border-radius: var(--radius-lg); }
+  .auth-brand { padding: 24px 20px; }
+  .auth-stats { gap: 20px; }
+  .auth-stat strong { font-size: 24px; }
+  .auth-form-side { padding: 20px 16px; }
+  .auth-card { padding: 24px 20px; }
+}

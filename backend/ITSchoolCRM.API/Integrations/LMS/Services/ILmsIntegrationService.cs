@@ -14,17 +14,12 @@ namespace ITSchoolCRM.API.Integrations.LMS.Services
     /// </summary>
     public interface ILmsIntegrationService
     {
-        Task<List<LmsStudentDto>> GetStudentsAsync(
-            CancellationToken cancellationToken);
+        Task<List<LmsStudentDto>> GetStudentsAsync(CancellationToken cancellationToken);
 
-        Task<List<LmsCourseDto>> GetCoursesAsync(
-            CancellationToken cancellationToken);
+        Task<List<LmsCourseDto>> GetCoursesAsync(CancellationToken cancellationToken);
 
-        Task<List<LmsEnrollmentDto>> GetEnrollmentsAsync(
-            CancellationToken cancellationToken);
+        Task<List<LmsEnrollmentDto>> GetEnrollmentsAsync(CancellationToken cancellationToken);
 
-        Task PushInteractionAsync(
-            PushInteractionToLmsDto dto,
-            CancellationToken cancellationToken);
+        Task PushInteractionAsync(PushInteractionToLmsDto dto, CancellationToken cancellationToken);
     }
 }

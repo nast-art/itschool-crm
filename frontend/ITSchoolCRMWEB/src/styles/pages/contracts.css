@@ -1,0 +1,284 @@
+/* ============================================================
+   Страница «Договоры» — компоновка строго по макету:
+   шапка «Договоры» + кнопка «Добавить договор» справа;
+   строка фильтров из кнопок-«пилюль» (Поиск, Период, Вуз, Статус)
+   с выпадающими панелями и кнопками «Найти»/«Сбросить»;
+   таблица: № Договора · Вуз · ПО · Подписан · Срок · Статус;
+   внизу — стандартный пейджер приложения.
+   Все цвета/радиусы/тени/моушн — только токены ДС Ростелеком.
+   ============================================================ */
+
+/* ---------- Строка фильтров ---------- */
+.contracts-filterbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* ---------- Поиск (пилюля в стиле поиска верхней панели) ---------- */
+.contracts-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 14px;
+  min-width: 220px;
+  max-width: 100%;          /* страховка: не шире родителя на маленьком экране */
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-pill);
+  background: var(--bg-surface-2);
+  color: var(--fg-muted);
+  transition: var(--transition-fast);
+}
+
+.contracts-search:focus-within {
+  border-color: var(--accent-default);
+  background: var(--bg-elevated-1);
+  box-shadow: 0 0 0 4px var(--accent-focus-ring);
+}
+
+.contracts-search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--fg-default);
+}
+
+.contracts-search input::placeholder {
+  color: var(--fg-disabled);
+}
+
+/* ---------- Кнопки-фильтры с выпадашками (по макету) ---------- */
+
+/* Контейнер — якорь для позиционирования выпадашки */
+.contracts-filter-wrap {
+  position: relative;
+}
+
+/* Кнопка-«пилюля». Состояние is-active — применённый фильтр:
+акцентная обводка + фон + оранжевая точка */
+.contracts-filter-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 16px;
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--fg-default);
+  background: var(--bg-elevated-1);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.contracts-filter-button:hover {
+  border-color: var(--accent-default);
+  color: var(--accent-default);
+}
+
+.contracts-filter-button.is-active {
+  border-color: var(--accent-default);
+  background: var(--accent-bg);
+  color: var(--accent-hover);
+  font-weight: 600;
+}
+
+.contracts-filter-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-default);
+}
+
+/* Выпадающая панель фильтра: те же токены, что у .menu/.dropdown */
+.contracts-filter-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 40;
+  min-width: 240px;
+  max-width: calc(100vw - 24px);   /* выпадашка не вылезает за правый край телефона */
+  padding: 14px;
+  background: var(--bg-elevated-1);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-modal);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: rise var(--motion-duration-xs) var(--motion-easing-productive-entrance) both;
+}
+
+.contracts-filter-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+
+/* Кнопки «Найти» и «Сбросить» — по высоте на линии пилюль */
+.contracts-find {
+  height: 40px;
+}
+
+.contracts-reset {
+  height: 40px;
+}
+
+/* ---------- Таблица реестра ----------
+Раскладка по содержимому (table-layout: auto): перенос вместо обрезки,
+кроме колонок «Вуз»/«ПО» — там максимум две строки (см. ниже) */
+.contracts-table {
+  width: 100%;
+  table-layout: auto;
+}
+
+.contracts-table th,
+.contracts-table td {
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  vertical-align: top;
+  font-size: 13px;
+  padding: 10px 12px;
+}
+
+.contracts-table th {
+  white-space: nowrap;
+}
+
+/* Кликабельная строка — открывает карточку договора */
+.contract-row-clickable {
+  cursor: pointer;
+}
+
+/* Номер договора — в одну строку, жирный */
+.contracts-number {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Вуз и ПО: максимум две строки, многоточие; полный текст —
+по наведению (title в JSX). Паттерн тот же, что у .dir-desc */
+.contracts-cell-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.contracts-empty {
+  padding: 24px 0;
+  color: var(--fg-muted);
+  text-align: center;
+}
+
+/* Отступ пагинации от таблицы (пейджер не «прилипает»
+к разделителю — тот же приём, что на странице «Вузы») */
+.contracts-pagination {
+  margin-top: 18px;
+}
+
+/* ---------- Карточка договора ---------- */
+
+/* Шапка карточки: заголовок слева, «Закрыть» справа */
+.contract-details-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+/* Сетка карточки просмотра: две колонки, «широкие» элементы
+(вуз, ПО, комментарий) — на всю ширину */
+.contract-details-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 20px;
+}
+
+/* Те же плитки в форме редактирования (только чтение: вуз, ПО) */
+.contract-readonly-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+/* Плитка «подпись + значение» в фирменных токенах */
+.contract-detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+}
+
+.contract-detail-item span {
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+
+.contract-detail-item strong {
+  font-size: 14px;
+  font-weight: 600;
+  word-break: break-word;
+}
+
+.contract-detail-item--wide {
+  grid-column: 1 / -1;
+}
+
+/* Комментарий — обычный текст (не жирный), переносы строк сохраняются */
+.contract-detail-comment {
+  font-weight: 400 !important;
+  white-space: pre-wrap;
+}
+
+/* ---------- Мобильный: плитки колонкой, поиск — во всю ширину ---------- */
+@media (max-width: 720px) {
+  .contract-details-grid,
+  .contract-readonly-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .contracts-search {
+    min-width: 0;
+    flex: 1 1 100%;
+  }
+}
+
+/* ---------- Подсветка строки из уведомления (?license=) ---------- */
+
+/* Подсвеченная строка таблицы: мягкая оранжевая заливка с левой
+   акцентной полосой + однократная пульсация, чтобы строку было
+   заметно сразу после перехода из уведомления */
+tr.row-highlight td {
+  background: var(--accent-bg);
+  animation: row-highlight-pulse 1.6s var(--motion-easing-productive-standard) 1;
+}
+
+tr.row-highlight td:first-child {
+  box-shadow: inset 3px 0 0 var(--accent-default);
+}
+
+@keyframes row-highlight-pulse {
+  0%   { background: var(--accent-bg-strong); }
+  100% { background: var(--accent-bg); }
+}
+
+/* Уважаем настройку «уменьшить движение» в ОС */
+@media (prefers-reduced-motion: reduce) {
+  tr.row-highlight td {
+    animation: none;
+  }
+}

@@ -14,13 +14,7 @@ public interface IUserSyncService
     /// по keycloak_user_id (поле "sub" из JWT).
     /// </summary>
     /// <returns>Идентификатор users.users_id.</returns>
-    Task<int> UpsertAsync(
-        string keycloakUserId,
-        string? lastName,
-        string? firstName,
-        string? middleName,
-        string? email,
-        CancellationToken cancellationToken);
+    Task<int> UpsertAsync(string keycloakUserId, string? lastName, string? firstName, string? middleName, string? email, CancellationToken cancellationToken);
 
     /// <summary>
     /// Создаёт запись для текущего авторизованного пользователя,
@@ -29,6 +23,5 @@ public interface IUserSyncService
     /// (admin, manager1, user1...), автоматически попадали в БД.
     /// </summary>
     /// <returns>users.users_id или null, если пользователь не авторизован.</returns>
-    Task<int?> EnsureCurrentUserAsync(
-        CancellationToken cancellationToken);
+    Task<int?> EnsureCurrentUserAsync(CancellationToken cancellationToken);
 }

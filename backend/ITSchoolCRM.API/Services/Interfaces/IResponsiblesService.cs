@@ -21,26 +21,14 @@ public interface IResponsiblesService
     /// <summary>
     /// Полная замена закрепления вузов за менеджером (транзакция + аудит).
     /// </summary>
-    Task<ResponsibleManagerDto> UpdateManagerUniversitiesAsync(
-        int userId,
-        UpdateManagerUniversitiesDto dto,
-        int? actingUserId,
-        CancellationToken ct = default);
+    Task<ResponsibleManagerDto> UpdateManagerUniversitiesAsync(int userId, UpdateManagerUniversitiesDto dto, int? actingUserId, CancellationToken ct = default);
 
     Task<List<UniversityContactDto>> GetContactsAsync(CancellationToken ct = default);
 
-    Task<UniversityContactDto> CreateContactAsync(
-        SaveUniversityContactDto dto,
-        int? actingUserId,
-        CancellationToken ct = default);
+    Task<UniversityContactDto> CreateContactAsync(SaveUniversityContactDto dto, int? actingUserId, CancellationToken ct = default);
+    Task<UniversityContactDto> UpdateContactAsync(int id, SaveUniversityContactDto dto, int? actingUserId, CancellationToken ct = default);
 
-    Task<UniversityContactDto> UpdateContactAsync(
-        int id,
-        SaveUniversityContactDto dto,
-        int? actingUserId,
-        CancellationToken ct = default);
-
-    /// <summary>Мягкое удаление: is_active = false (152-ФЗ, аудит).</summary>
+    /// <summary>Мягкое удаление: is_active = false.</summary>
     Task DeleteContactAsync(int id, int? actingUserId, CancellationToken ct = default);
 
     /// <summary>

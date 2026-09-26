@@ -22,6 +22,11 @@
 // за вузы (менять, удалять, назначать)»);
 // admin — всё вышеперечисленное.
 //
+// АДАПТИВНОСТЬ: у каждого <td> таблицы .uni-table есть атрибут
+// data-label с названием колонки — на мобильном (≤720px, см. base.css)
+// таблица превращается в карточки «подпись : значение». У колонки
+// действий data-label нет — кнопки просто прижимаются к правому краю.
+//
 // Контракт с бэкендом (ITSchoolCRM.API):
 // GET /Interactions — список (уже отфильтрован по доступу)
 // GET /Universities — справочник вузов
@@ -586,13 +591,19 @@ export default function UniversitiesPage() {
                 <tbody>
                   {paged.map(({ interaction: i, contract, license, product }) => (
                     <tr key={i.id}>
-                      <td className="col-university">{i.universityName ?? '—'}</td>
-                      <td>{product?.vendor ?? '—'}</td>
-                      <td>{i.productName ?? '—'}</td>
-                      <td>{contract?.contractNumber ?? '—'}</td>
-                      <td>{license ? formatDate(license.signedAt ?? license.signed_at) : '—'}</td>
-                      <td>{license ? formatYear(license.validUntil ?? license.valid_until) : '—'}</td>
-                      <td>
+                      <td className="col-university" data-label="Название вуза">
+                        {i.universityName ?? '—'}
+                      </td>
+                      <td data-label="Вендор">{product?.vendor ?? '—'}</td>
+                      <td data-label="ПО">{i.productName ?? '—'}</td>
+                      <td data-label="№ Договора">{contract?.contractNumber ?? '—'}</td>
+                      <td data-label="Подписание лицензии">
+                        {license ? formatDate(license.signedAt ?? license.signed_at) : '—'}
+                      </td>
+                      <td data-label="Срок действия">
+                        {license ? formatYear(license.validUntil ?? license.valid_until) : '—'}
+                      </td>
+                      <td data-label="Статус передачи">
                         {license?.transferStatus ?? license?.transfer_status ? (
                           <span
                             className={transferStatusClass(
@@ -605,14 +616,16 @@ export default function UniversitiesPage() {
                           '—'
                         )}
                       </td>
-                      <td>{i.managerName ?? '—'}</td>
-                      <td>{i.universityContactName ?? '—'}</td>
-                      <td className="col-comment">
+                      <td data-label="Менеджер">{i.managerName ?? '—'}</td>
+                      <td data-label="Ответственные">{i.universityContactName ?? '—'}</td>
+                      <td className="col-comment" data-label="Комментарий">
                         {license?.comment ?? contract?.comment ?? '—'}
                       </td>
                       {canManage && (
                         <td className="col-actions">
-                          {/* Назначение менеджера — привилегия руководителя/админа */}
+                          {/* Назначение менеджера — привилегия руководителя/админа.
+                              data-label нет: в карточке на мобильном кнопка
+                              просто прижимается к правому краю */}
                           <button
                             type="button"
                             className="icon-btn row-action"

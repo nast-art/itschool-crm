@@ -9,17 +9,15 @@ namespace ITSchoolCRM.API.Controllers;
 
 /// <summary>
 /// Раздел «Ответственные»:
-///  — менеджеры школы: просмотр — всем авторизованным, закрепление вузов
-///    (п. 11 ТЗ: «руководитель … изменяет ответственных пользователей
-///    за вузы (менять, удалять, назначать)») — manager/admin;
-///  — представители вузов: CRUD каталога university_contacts
-///    (требование 1 ТЗ: список ответственных — каталог в БД),
-///    удаление — мягкое (is_active = false, 152-ФЗ, аудит).
+///  — менеджеры школы: просмотр — всем авторизованным, закрепление вузов — manager/admin;
+///  — представители вузов: CRUD каталога university_contacts (список ответственных —
+///    каталог в БД), удаление — мягкое (is_active = false, 152-ФЗ, аудит).
 ///
-/// Контроллер тонкий: ролевая проверка (из claims Keycloak) и маппинг
-/// исключений сервиса в ErrorResponseDto { code, message } — здесь;
-/// вся работа с БД — в IResponsiblesService / ResponsiblesService.
-///
+/// Контроллер тонкий: ролевая проверка (из claims Keycloak) и маппинг исключений
+/// сервиса в ErrorResponseDto { code, message } — здесь; вся работа с БД — в
+/// IResponsiblesService / ResponsiblesService.
+/// </summary>
+/// <remarks>
 /// Маршруты:
 ///   GET    /api/Responsibles/managers
 ///   PUT    /api/Responsibles/managers/{userId}/universities
@@ -27,7 +25,7 @@ namespace ITSchoolCRM.API.Controllers;
 ///   POST   /api/Responsibles/contacts
 ///   PUT    /api/Responsibles/contacts/{id}
 ///   DELETE /api/Responsibles/contacts/{id}
-/// </summary>
+/// </remarks>
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
@@ -40,48 +38,40 @@ public class ResponsiblesController : ControllerBase
         _service = service;
     }
 
-    // ---------------------------------------------------------------
-    // Ролевая модель (п. 11 ТЗ): управление ответственными —
-    // привилегия руководителя (manager) и администратора (admin).
-    // Роли приходят из Keycloak в claims (realm roles).
-    // ---------------------------------------------------------------
+    /// <summary>
+    /// Ролевая модель: управление ответственными — привилегия руководителя
+    /// (manager) и администратора (admin). Роли приходят из Keycloak в claims (realm roles).
+    /// </summary>
     private bool CanManage =>
         User.IsInRole("manager") || User.IsInRole("admin");
 
     /// <summary>
     /// Текущий пользователь БД (users.users_id) — для audit_logs.user_id.
-    /// Резолвим по keycloak_user_id из claim "sub" (стандартный claim
-    /// Keycloak; бэкенд записывает его в users.keycloak_user_id при
-    /// регистрации/первом входе). Резолв вынесен в сервис,
+    /// Резолвим по keycloak_user_id из claim "sub"; резолв вынесен в сервис,
     /// контроллер DbContext не трогает.
     /// </summary>
     private async Task<int?> GetCurrentUserIdAsync()
     {
         var sub = User.FindFirst("sub")?.Value
                   ?? User.FindFirst("keycloak_user_id")?.Value;
-        if (string.IsNullOrEmpty(sub)) return null;
+        if (string.IsNullOrEmpty(sub))
+        {
+            return null;
+        }
 
         return await _service.ResolveUserIdByKeycloakSubAsync(sub);
     }
 
-    // ---------------------------------------------------------------
-    // GET /api/Responsibles/managers
-    // «Менеджеры школы» — всем авторизованным ролям (просмотр).
-    // ---------------------------------------------------------------
+    /// <summary>GET /api/Responsibles/managers — «Менеджеры школы», всем авторизованным ролям.</summary>
     [HttpGet("managers")]
-    public async Task<ActionResult<List<ResponsibleManagerDto>>> GetManagers(
-        CancellationToken ct)
+    public async Task<ActionResult<List<ResponsibleManagerDto>>> GetManagers(CancellationToken ct)
     {
         return await _service.GetManagersAsync(ct);
     }
 
-    // ---------------------------------------------------------------
-    // PUT /api/Responsibles/managers/{userId}/universities
-    // Полная замена закрепления вузов за менеджером — manager/admin.
-    // ---------------------------------------------------------------
+    /// <summary>PUT /api/Responsibles/managers/{userId}/universities — полная замена закрепления вузов за менеджером, manager/admin.</summary>
     [HttpPut("managers/{userId:int}/universities")]
-    public async Task<ActionResult<ResponsibleManagerDto>> UpdateManagerUniversities(
-        int userId, UpdateManagerUniversitiesDto dto, CancellationToken ct)
+    public async Task<ActionResult<ResponsibleManagerDto>> UpdateManagerUniversities(int userId, UpdateManagerUniversitiesDto dto, CancellationToken ct)
     {
         if (!CanManage)
         {
@@ -95,8 +85,7 @@ public class ResponsiblesController : ControllerBase
         try
         {
             var actingUserId = await GetCurrentUserIdAsync();
-            return await _service.UpdateManagerUniversitiesAsync(
-                userId, dto, actingUserId, ct);
+            return await _service.UpdateManagerUniversitiesAsync(userId, dto, actingUserId, ct);
         }
         catch (KeyNotFoundException ex)
         {
@@ -116,24 +105,16 @@ public class ResponsiblesController : ControllerBase
         }
     }
 
-    // ---------------------------------------------------------------
-    // GET /api/Responsibles/contacts
-    // Каталог представителей вузов — всем авторизованным ролям.
-    // ---------------------------------------------------------------
+    /// <summary>GET /api/Responsibles/contacts — каталог представителей вузов, всем авторизованным ролям.</summary>
     [HttpGet("contacts")]
-    public async Task<ActionResult<List<UniversityContactDto>>> GetContacts(
-        CancellationToken ct)
+    public async Task<ActionResult<List<UniversityContactDto>>> GetContacts(CancellationToken ct)
     {
         return await _service.GetContactsAsync(ct);
     }
 
-    // ---------------------------------------------------------------
-    // POST /api/Responsibles/contacts
-    // Новый представитель вуза — manager/admin.
-    // ---------------------------------------------------------------
+    /// <summary>POST /api/Responsibles/contacts — новый представитель вуза, manager/admin.</summary>
     [HttpPost("contacts")]
-    public async Task<ActionResult<UniversityContactDto>> CreateContact(
-        SaveUniversityContactDto dto, CancellationToken ct)
+    public async Task<ActionResult<UniversityContactDto>> CreateContact(SaveUniversityContactDto dto, CancellationToken ct)
     {
         if (!CanManage)
         {
@@ -160,14 +141,9 @@ public class ResponsiblesController : ControllerBase
         }
     }
 
-    // ---------------------------------------------------------------
-    // PUT /api/Responsibles/contacts/{id}
-    // Редактирование представителя (включая активацию/деактивацию)
-    // — manager/admin.
-    // ---------------------------------------------------------------
+    /// <summary>PUT /api/Responsibles/contacts/{id} — редактирование представителя (включая активацию/деактивацию), manager/admin.</summary>
     [HttpPut("contacts/{id:int}")]
-    public async Task<ActionResult<UniversityContactDto>> UpdateContact(
-        int id, SaveUniversityContactDto dto, CancellationToken ct)
+    public async Task<ActionResult<UniversityContactDto>> UpdateContact(int id, SaveUniversityContactDto dto, CancellationToken ct)
     {
         if (!CanManage)
         {
@@ -201,11 +177,10 @@ public class ResponsiblesController : ControllerBase
         }
     }
 
-    // ---------------------------------------------------------------
-    // DELETE /api/Responsibles/contacts/{id}
-    // Мягкое удаление (is_active = false) — manager/admin.
-    // Идемпотентно: повторный вызов для неактивного контакта — 204.
-    // ---------------------------------------------------------------
+    /// <summary>
+    /// DELETE /api/Responsibles/contacts/{id} — мягкое удаление (is_active = false), manager/admin.
+    /// Идемпотентно: повторный вызов для неактивного контакта — 204.
+    /// </summary>
     [HttpDelete("contacts/{id:int}")]
     public async Task<IActionResult> DeleteContact(int id, CancellationToken ct)
     {

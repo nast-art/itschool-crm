@@ -1,0 +1,230 @@
+/* ============================================================
+   Страница «Пользователи и права доступа» (раздел «Система»)
+   Десктоп: две таблицы одна под другой (по макету).
+   Мобильный: каждая таблица превращается в стопку карточек
+   (data-label на <td> + паттерн из base.css, ≤720px).
+   ============================================================ */
+
+.access-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+/* ---------- Поиск над таблицей пользователей ---------- */
+.access-panel-head {
+  align-items: center;
+}
+
+.access-search input {
+  width: 260px;
+  max-width: 100%;
+  height: 40px;
+  padding: 0 14px;
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--fg-default);
+  background: var(--bg-elevated-1);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-pill);
+  transition: var(--transition-base);
+  box-sizing: border-box;
+}
+
+.access-search input::placeholder {
+  color: var(--fg-disabled);
+}
+
+.access-search input:hover {
+  border-color: var(--accent-border);
+}
+
+.access-search input:focus {
+  outline: none;
+  border-color: var(--accent-default);
+  box-shadow: 0 0 0 4px var(--accent-focus-ring);
+}
+
+/* ---------- Таблица пользователей ---------- */
+.access-users-table {
+  width: 100%;
+  table-layout: auto;
+}
+
+.access-users-table th,
+.access-users-table td {
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  vertical-align: middle;
+  font-size: 14px;
+  padding: 12px 14px;
+}
+
+.access-users-table th {
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.access-users-table tbody tr {
+  cursor: pointer;
+}
+
+.access-users-table tbody tr.is-selected {
+  background: var(--accent-bg);
+  box-shadow: inset 3px 0 0 var(--accent-default);
+}
+
+/* Имя как «тихая» кнопка — клик выбирает строку */
+.access-user-name {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg-default);
+  text-align: left;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.access-user-name:hover {
+  color: var(--accent-hover);
+}
+
+.access-user-email {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+
+/* ---------- Бейджи ролей (палитра Status-01…03) ---------- */
+.role-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+
+.role-badge--user {
+  background: var(--status-03-bg);
+  color: var(--status-03-hover);
+  border-color: var(--status-03-border);
+}
+
+.role-badge--manager {
+  background: var(--status-01-bg);
+  color: var(--status-01-hover);
+  border-color: var(--status-01-border);
+}
+
+.role-badge--admin {
+  background: var(--accent-bg);
+  color: var(--accent-hover);
+  border-color: var(--accent-border);
+}
+
+/* ---------- Колонка действий ---------- */
+.access-actions-col {
+  width: 64px;
+  white-space: nowrap;
+  text-align: center;
+}
+
+/* ---------- Таблица прав доступа ---------- */
+.access-rights-table {
+  width: 100%;
+  table-layout: auto;
+}
+
+.access-rights-table th,
+.access-rights-table td {
+  font-size: 14px;
+  padding: 10px 14px;
+  vertical-align: middle;
+}
+
+.access-rights-table th {
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.access-rights-table td.access-center,
+.access-rights-table th.access-center {
+  text-align: center;
+  width: 120px;
+}
+
+/* Галочка/тире в ячейке */
+.access-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-pill);
+  font-size: 14px;
+  color: var(--fg-disabled);
+  background: var(--bg-surface-2);
+}
+
+.access-mark--yes {
+  color: var(--success-hover);
+  background: var(--success-bg);
+}
+
+/* Имя выбранного пользователя в заголовке второй таблицы */
+.access-selected-user {
+  font-weight: 400;
+  font-size: 15px;
+  color: var(--fg-soft);
+}
+
+/* ---------- Пустые состояния ---------- */
+.access-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 36px 16px;
+  color: var(--fg-muted);
+  font-size: 14px;
+  text-align: center;
+}
+
+.access-empty svg {
+  color: var(--accent-default);
+  opacity: 0.6;
+}
+
+/* ---------- Модалка настройки пользователя ---------- */
+.access-user-modal .modal-user-title {
+  margin: -6px 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- Адаптивность ---------- */
+@media (max-width: 860px) {
+  /* Поиск над таблицей — во всю ширину на узком экране */
+  .access-panel-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .access-search input {
+    width: 100%;
+  }
+
+  /* Таблицы здесь НЕ ограничиваем по ширине: на ≤720px они
+     превращаются в карточки (base.css), на 721–860 остаются
+     обычными таблицами и вписываются в ширину */
+}

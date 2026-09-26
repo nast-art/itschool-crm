@@ -8,7 +8,8 @@ namespace ITSchoolCRM.API.Services.Implementations;
 
 /// <summary>
 /// Реализация синхронизации пользователей Keycloak -> users CRM.
-///
+/// </summary>
+/// <remarks>
 /// Логика:
 ///   1. Ищем пользователя в users по keycloak_user_id.
 ///   2. Не нашли — создаём (части ФИО, email, is_active = true).
@@ -29,10 +30,10 @@ namespace ITSchoolCRM.API.Services.Implementations;
 ///   - catalog:version — справочник пользователей (UserService.GetAllAsync);
 ///   - interaction:version — ФИО проецируется в InteractionDto.ManagerName,
 ///     ReportRowDto.ResponsibleName и агрегаты статистики.
-/// ИНВАЛИДАЦИЯ ТОЛЬКО ПРИ РЕАЛЬНОМ ИЗМЕНЕНИИ (флаг userChanged):
+/// Инвалидация — только при реальном изменении (флаг userChanged):
 /// UpsertAsync вызывается при каждом входе пользователя, а без флага
 /// каждый логин сбрасывал бы весь кэш взаимодействий впустую.
-/// </summary>
+/// </remarks>
 public class UserSyncService : IUserSyncService
 {
     private readonly CrmDbContext _context;
@@ -63,10 +64,7 @@ public class UserSyncService : IUserSyncService
                 cancellationToken);
 
         // Флаг «запись реально изменила данные». Первый вход
-        // пользователя (user == null) — всегда изменение:
-        // в справочнике появился новый человек. Без флага каждый
-        // вход (Upsert вызывается при каждой сессии) делал бы
-        // два INCR и сбрасывал кэш взаимодействий впустую.
+        // (user == null) — всегда изменение.
         var userChanged = user is null;
 
         if (user is null)
@@ -125,27 +123,19 @@ public class UserSyncService : IUserSyncService
 
         await _context.SaveChangesAsync(cancellationToken);
 
-        // НОВОЕ (кэш): инвалидация только при реальном изменении.
-        // Новый пользователь должен появиться в фильтре
-        // «Ответственный» и стать доступным для назначения
-        // менеджером немедленно (без ожидания TTL); смена ФИО
-        // должна отразиться в списках взаимодействий и отчётах.
         if (userChanged)
         {
-            await _cache.BumpVersionAsync(
-                CacheKeys.CatalogVersion,
-                cancellationToken);
-
-            await _cache.BumpVersionAsync(
-                CacheKeys.InteractionVersionKey,
-                cancellationToken);
+            // Новый пользователь должен появиться в фильтре «Ответственный»
+            // и стать доступным для назначения немедленно (без ожидания TTL);
+            // смена ФИО должна отразиться в списках взаимодействий и отчётах.
+            await _cache.BumpVersionAsync(CacheKeys.CatalogVersion, cancellationToken);
+            await _cache.BumpVersionAsync(CacheKeys.InteractionVersionKey, cancellationToken);
         }
 
         return user.users_id;
     }
 
-    public async Task<int?> EnsureCurrentUserAsync(
-        CancellationToken cancellationToken)
+    public async Task<int?> EnsureCurrentUserAsync(CancellationToken cancellationToken)
     {
         if (!_currentUser.IsAuthenticated ||
             string.IsNullOrWhiteSpace(_currentUser.KeycloakUserId))
@@ -164,7 +154,8 @@ public class UserSyncService : IUserSyncService
 
         if (!string.IsNullOrWhiteSpace(nameFromClaim))
         {
-            // Keycloak: "Иван Иванов" -> first_name = Иван, last_name = Иванов
+            // Keycloak: "Иван Иванов" -> first_name = Иван, last_name = Иванов.
+            // Слов(а) между первым и последним — отчество (при полном ФИО).
             var parts = nameFromClaim.Trim()
                 .Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
@@ -185,9 +176,7 @@ public class UserSyncService : IUserSyncService
         }
 
         // Upsert сам решит, было ли изменение: при обычном входе
-        // (данные те же) флаг userChanged не взведётся, INCR
-        // не выполнится, кэш останется нетронутым. При первом
-        // входе или смене профиля в Keycloak — инвалидирует.
+        // (данные те же) INCR не выполнится и кэш останется нетронутым.
         return await UpsertAsync(
             _currentUser.KeycloakUserId,
             lastName,

@@ -10,11 +10,12 @@ namespace ITSchoolCRM.API.Services.Implementations;
 
 /// <summary>
 /// Сервис взаимодействий — ядро CRM.
-///
+/// </summary>
+/// <remarks>
 /// КЭШИРОВАНИЕ (KeyDB, паттерн cache-aside):
 ///   - GetAllAsync      → список со скопом текущего пользователя
-///     (выборка фильтруется по university_managers, у каждого
-///     пользователя свой набор; manager/admin — общий скоп "full");
+///     (выборка фильтруется по university_managers, у каждого пользователя
+///     свой набор; manager/admin — общий скоп "full");
 ///   - GetByIdAsync     → карточка, доступ проверяется ДО кэша;
 ///   - GetHistoryAsync  → история, доступ проверяется ДО кэша.
 ///
@@ -25,10 +26,10 @@ namespace ITSchoolCRM.API.Services.Implementations;
 /// и заполняются заново из PostgreSQL при следующем запросе.
 ///
 /// ВАЖНО: CacheService зарегистрирован как Singleton, сервис —
-/// Scoped (по контексту EF Core). Это корректно: сервис
-/// получает singleton через конструктор, а CrmDbContext по-прежнему
-/// scoped и доступен внутри factory-лямбд.
-/// </summary>
+/// Scoped (по контексту EF Core). Это корректно: сервис получает
+/// singleton через конструктор, а CrmDbContext по-прежнему scoped
+/// и доступен внутри factory-лямбд.
+/// </remarks>
 public class InteractionService : IInteractionService
 {
     private readonly CrmDbContext _context;
@@ -69,19 +70,49 @@ public class InteractionService : IInteractionService
             : _currentUserService.KeycloakUserId;
 
     /// <summary>
-    /// Сброс кэша всего, что зависит от взаимодействий: списки
-    /// всех пользователей, карточки, история, вложения, агрегаты
-    /// статистики. Один атомарный INCR на KeyDB. Вызывается
-    /// ПОСЛЕ SaveChangesAsync в каждом методе записи.
+    /// Сброс кэша всего, что зависит от взаимодействий: списки всех
+    /// пользователей, карточки, история, вложения, агрегаты статистики.
+    /// Один атомарный INCR на KeyDB. Вызывается ПОСЛЕ SaveChangesAsync
+    /// в каждом методе записи.
     /// </summary>
-    private Task InvalidateInteractionsAsync(
-        CancellationToken cancellationToken)
+    private Task InvalidateInteractionsAsync(CancellationToken cancellationToken)
         => _cache.BumpVersionAsync(
             CacheKeys.InteractionVersionKey,
             cancellationToken);
 
-    public async Task<List<InteractionDto>> GetAllAsync(
-        CancellationToken cancellationToken)
+    // Единая проекция сущности -> InteractionDto (та же в списке, карточке
+    // и выборке по вузу). Колонки full_name в users нет: ФИО собирается из частей.
+    private static IQueryable<InteractionDto> ProjectToDto(IQueryable<interaction> query)
+    {
+        return query.Select(x => new InteractionDto
+        {
+            Id = x.interactions_id,
+            UniversityId = x.university_id,
+            UniversityName = x.university != null ? x.university.name : null,
+            ProgramId = x.program_id,
+            ProgramName = x.program != null ? x.program.name : null,
+            ProductId = x.product_id,
+            ProductName = x.product != null ? x.product.name : null,
+            ManagerId = x.manager_id,
+            ManagerName = x.manager == null
+                ? null
+                : x.manager.middle_name == null
+                    ? x.manager.last_name + " " + x.manager.first_name
+                    : x.manager.last_name + " " + x.manager.first_name + " " + x.manager.middle_name,
+            UniversityContactId = x.university_contact_id,
+            UniversityContactName = x.university_contact != null ? x.university_contact.full_name : null,
+            WorkflowId = x.workflow_id,
+            WorkflowName = x.workflow != null ? x.workflow.name : null,
+            CurrentStatusId = x.current_status_id,
+            CurrentStatusName = x.current_status != null ? x.current_status.name : null,
+            ContractId = x.contract_id,
+            LicenseId = x.license_id,
+            CreatedAt = x.created_at,
+            UpdatedAt = x.updated_at
+        });
+    }
+
+    public async Task<List<InteractionDto>> GetAllAsync(CancellationToken cancellationToken)
     {
         var scope = CurrentCacheScope;
 
@@ -89,102 +120,32 @@ public class InteractionService : IInteractionService
         // (выборка будет пустой), идём в БД напрямую.
         if (scope is null)
         {
-            return await LoadAllFromDatabaseAsync(
-                cancellationToken);
+            return await LoadAllFromDatabaseAsync(cancellationToken);
         }
 
         return await _cache.GetOrCreateAsync(
             CacheKeys.InteractionList(scope),
             _cacheOptions.InteractionTtl,
-            _ => LoadAllFromDatabaseAsync(
-                cancellationToken),
+            _ => LoadAllFromDatabaseAsync(cancellationToken),
             cancellationToken);
     }
 
     /// <summary>
-    /// Исходная выборка списка. Фильтрация по доступу внутри —
-    /// кэш хранит УЖЕ отфильтрованный по university_managers набор,
-    /// поэтому ключ списка обязан включать скоп пользователя.
+    /// Выборка списка из БД. Фильтрация по доступу внутри — кэш хранит
+    /// УЖЕ отфильтрованный по university_managers набор, поэтому ключ
+    /// списка обязан включать скоп пользователя.
     /// </summary>
-    private async Task<List<InteractionDto>> LoadAllFromDatabaseAsync(
-        CancellationToken cancellationToken)
+    private async Task<List<InteractionDto>> LoadAllFromDatabaseAsync(CancellationToken cancellationToken)
     {
-        var accessibleUniversityIds =
-            _accessService.GetAccessibleUniversityIds();
+        var accessibleUniversityIds = _accessService.GetAccessibleUniversityIds();
 
-        return await _context.interactions
-            .AsNoTracking()
-            .Where(x =>
-                x.university_id.HasValue &&
-                accessibleUniversityIds.Contains(
-                    x.university_id.Value))
-            .OrderByDescending(x => x.updated_at)
-            .Select(x => new InteractionDto
-            {
-                Id = x.interactions_id,
-
-                UniversityId = x.university_id,
-
-                UniversityName =
-                    x.university != null
-                        ? x.university.name
-                        : null,
-
-                ProgramId = x.program_id,
-
-                ProgramName =
-                    x.program != null
-                        ? x.program.name
-                        : null,
-
-                ProductId = x.product_id,
-
-                ProductName =
-                    x.product != null
-                        ? x.product.name
-                        : null,
-
-                ManagerId = x.manager_id,
-
-                // Колонки full_name нет: ФИО собирается из частей.
-                ManagerName =
-                    x.manager == null
-                        ? null
-                        : x.manager.middle_name == null
-                            ? x.manager.last_name + " " + x.manager.first_name
-                            : x.manager.last_name + " " + x.manager.first_name + " " + x.manager.middle_name,
-
-                UniversityContactId =
-                    x.university_contact_id,
-
-                UniversityContactName =
-                    x.university_contact != null
-                        ? x.university_contact.full_name
-                        : null,
-
-                WorkflowId = x.workflow_id,
-
-                WorkflowName =
-                    x.workflow != null
-                        ? x.workflow.name
-                        : null,
-
-                CurrentStatusId =
-                    x.current_status_id,
-
-                CurrentStatusName =
-                    x.current_status != null
-                        ? x.current_status.name
-                        : null,
-
-                ContractId = x.contract_id,
-
-                LicenseId = x.license_id,
-
-                CreatedAt = x.created_at,
-
-                UpdatedAt = x.updated_at
-            })
+        return await ProjectToDto(
+                _context.interactions
+                    .AsNoTracking()
+                    .Where(x =>
+                        x.university_id.HasValue &&
+                        accessibleUniversityIds.Contains(x.university_id.Value))
+                    .OrderByDescending(x => x.updated_at))
             .ToListAsync(cancellationToken);
     }
 
@@ -194,109 +155,31 @@ public class InteractionService : IInteractionService
     {
         // Фронт этот метод не вызывает (используется общий /Interactions),
         // поэтому кэш не добавляем: лишний ключ не дал бы выигрыша.
-        var hasAccess =
-            await _accessService
-                .HasAccessToUniversityAsync(
-                    universityId,
-                    cancellationToken);
+        var hasAccess = await _accessService
+            .HasAccessToUniversityAsync(universityId, cancellationToken);
 
         if (!hasAccess)
         {
             return new List<InteractionDto>();
         }
 
-        return await _context.interactions
-            .AsNoTracking()
-            .Where(x =>
-                x.university_id ==
-                universityId)
-            .OrderByDescending(x => x.updated_at)
-            .Select(x => new InteractionDto
-            {
-                Id = x.interactions_id,
-
-                UniversityId = x.university_id,
-
-                UniversityName =
-                    x.university != null
-                        ? x.university.name
-                        : null,
-
-                ProgramId = x.program_id,
-
-                ProgramName =
-                    x.program != null
-                        ? x.program.name
-                        : null,
-
-                ProductId = x.product_id,
-
-                ProductName =
-                    x.product != null
-                        ? x.product.name
-                        : null,
-
-                ManagerId = x.manager_id,
-
-                // Колонки full_name нет: ФИО собирается из частей.
-                ManagerName =
-                    x.manager == null
-                        ? null
-                        : x.manager.middle_name == null
-                            ? x.manager.last_name + " " + x.manager.first_name
-                            : x.manager.last_name + " " + x.manager.first_name + " " + x.manager.middle_name,
-
-                UniversityContactId =
-                    x.university_contact_id,
-
-                UniversityContactName =
-                    x.university_contact != null
-                        ? x.university_contact.full_name
-                        : null,
-
-                WorkflowId = x.workflow_id,
-
-                WorkflowName =
-                    x.workflow != null
-                        ? x.workflow.name
-                        : null,
-
-                CurrentStatusId =
-                    x.current_status_id,
-
-                CurrentStatusName =
-                    x.current_status != null
-                        ? x.current_status.name
-                        : null,
-
-                ContractId = x.contract_id,
-
-                LicenseId = x.license_id,
-
-                CreatedAt = x.created_at,
-
-                UpdatedAt = x.updated_at
-            })
+        return await ProjectToDto(
+                _context.interactions
+                    .AsNoTracking()
+                    .Where(x => x.university_id == universityId)
+                    .OrderByDescending(x => x.updated_at))
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<InteractionDto?> GetByIdAsync(
-        int id,
-        CancellationToken cancellationToken)
+    public async Task<InteractionDto?> GetByIdAsync(int id, CancellationToken cancellationToken)
     {
         // Доступ проверяем ДО кэша отдельным дешёвым запросом:
         // так кэш никогда не отдаст карточку чужого вуза.
-        // Раньше проверка происходила после загрузки карточки
-        // анонимным типом — поведение идентично, но теперь
-        // мы не тянем саму карточку до подтверждения доступа.
-        var universityId =
-            await _context.interactions
-                .AsNoTracking()
-                .Where(x =>
-                    x.interactions_id == id)
-                .Select(x => x.university_id)
-                .FirstOrDefaultAsync(
-                    cancellationToken);
+        var universityId = await _context.interactions
+            .AsNoTracking()
+            .Where(x => x.interactions_id == id)
+            .Select(x => x.university_id)
+            .FirstOrDefaultAsync(cancellationToken);
 
         // Не нашли, или у взаимодействия нет вуза (неконсистентные
         // данные — по ТЗ вуз обязателен при создании)
@@ -305,106 +188,32 @@ public class InteractionService : IInteractionService
             return null;
         }
 
-        var hasAccess =
-            await _accessService
-                .HasAccessToUniversityAsync(
-                    universityId.Value,
-                    cancellationToken);
+        var hasAccess = await _accessService
+            .HasAccessToUniversityAsync(universityId.Value, cancellationToken);
 
         if (!hasAccess)
         {
             return null;
         }
 
-        // Сам ключ без скопа: карточка одинакова для всех,
-        // кому доступ разрешён (менеджер может смениться —
-        // тогда сработает инвалидация по InteractionVersionKey).
+        // Сам ключ без скопа: карточка одинакова для всех, кому доступ
+        // разрешён. Доступ до кэша — гарантия, что чужая карточка
+        // не попадёт в чужие руки через общий ключ.
         return await _cache.GetOrCreateAsync(
             CacheKeys.Interaction(id),
             _cacheOptions.InteractionTtl,
-            _ => LoadByIdFromDatabaseAsync(
-                id,
-                cancellationToken),
+            _ => LoadByIdFromDatabaseAsync(id, cancellationToken),
             cancellationToken);
     }
 
-    /// <summary>Исходная загрузка карточки одним проецирующим запросом.</summary>
-    private async Task<InteractionDto?> LoadByIdFromDatabaseAsync(
-        int id,
-        CancellationToken cancellationToken)
+    /// <summary>Загрузка карточки из БД одним проецирующим запросом (промах кэша).</summary>
+    private async Task<InteractionDto?> LoadByIdFromDatabaseAsync(int id, CancellationToken cancellationToken)
     {
-        return await _context.interactions
-            .AsNoTracking()
-            .Where(x =>
-                x.interactions_id == id)
-            .Select(x => new InteractionDto
-            {
-                Id = x.interactions_id,
-
-                UniversityId = x.university_id,
-
-                UniversityName =
-                    x.university != null
-                        ? x.university.name
-                        : null,
-
-                ProgramId = x.program_id,
-
-                ProgramName =
-                    x.program != null
-                        ? x.program.name
-                        : null,
-
-                ProductId = x.product_id,
-
-                ProductName =
-                    x.product != null
-                        ? x.product.name
-                        : null,
-
-                ManagerId = x.manager_id,
-
-                // Колонки full_name нет: ФИО собирается из частей.
-                ManagerName =
-                    x.manager == null
-                        ? null
-                        : x.manager.middle_name == null
-                            ? x.manager.last_name + " " + x.manager.first_name
-                            : x.manager.last_name + " " + x.manager.first_name + " " + x.manager.middle_name,
-
-                UniversityContactId =
-                    x.university_contact_id,
-
-                UniversityContactName =
-                    x.university_contact != null
-                        ? x.university_contact.full_name
-                        : null,
-
-                WorkflowId = x.workflow_id,
-
-                WorkflowName =
-                    x.workflow != null
-                        ? x.workflow.name
-                        : null,
-
-                CurrentStatusId =
-                    x.current_status_id,
-
-                CurrentStatusName =
-                    x.current_status != null
-                        ? x.current_status.name
-                        : null,
-
-                ContractId = x.contract_id,
-
-                LicenseId = x.license_id,
-
-                CreatedAt = x.created_at,
-
-                UpdatedAt = x.updated_at
-            })
-            .FirstOrDefaultAsync(
-                cancellationToken);
+        return await ProjectToDto(
+                _context.interactions
+                    .AsNoTracking()
+                    .Where(x => x.interactions_id == id))
+            .FirstOrDefaultAsync(cancellationToken);
     }
 
     public async Task<InteractionDto?> CreateAsync(
@@ -413,139 +222,112 @@ public class InteractionService : IInteractionService
     {
         if (!dto.UniversityId.HasValue)
         {
-            throw new ArgumentException(
-                "UniversityId обязателен.");
+            throw new ArgumentException("UniversityId обязателен.");
         }
 
         if (!dto.WorkflowId.HasValue)
         {
-            throw new ArgumentException(
-                "WorkflowId обязателен.");
+            throw new ArgumentException("WorkflowId обязателен.");
         }
 
-        var hasUniversityAccess =
-            await _accessService
-                .HasAccessToUniversityAsync(
-                    dto.UniversityId.Value,
-                    cancellationToken);
+        var hasUniversityAccess = await _accessService
+            .HasAccessToUniversityAsync(dto.UniversityId.Value, cancellationToken);
 
         if (!hasUniversityAccess)
         {
             return null;
         }
 
-        var universityExists =
-            await _context.universities
-                .AnyAsync(
-                    x =>
-                        x.universities_id ==
-                        dto.UniversityId.Value &&
-                        x.is_active == true,
-                    cancellationToken);
+        var universityExists = await _context.universities
+            .AnyAsync(
+                x =>
+                    x.universities_id == dto.UniversityId.Value &&
+                    x.is_active == true,
+                cancellationToken);
 
         if (!universityExists)
         {
-            throw new InvalidOperationException(
-                "Указанный ВУЗ не найден или неактивен.");
+            throw new InvalidOperationException("Указанный ВУЗ не найден или неактивен.");
         }
 
         if (dto.ProgramId.HasValue)
         {
-            var programExists =
-                await _context.it_programs
-                    .AnyAsync(
-                        x =>
-                            x.it_programs_id ==
-                            dto.ProgramId.Value &&
-                            x.is_active == true,
-                        cancellationToken);
+            var programExists = await _context.it_programs
+                .AnyAsync(
+                    x =>
+                        x.it_programs_id == dto.ProgramId.Value &&
+                        x.is_active == true,
+                    cancellationToken);
 
             if (!programExists)
             {
-                throw new InvalidOperationException(
-                    "Указанная ИТ-программа не найдена или неактивна.");
+                throw new InvalidOperationException("Указанная ИТ-программа не найдена или неактивна.");
             }
         }
 
         if (dto.ProductId.HasValue)
         {
-            var productExists =
-                await _context.it_products
-                    .AnyAsync(
-                        x =>
-                            x.it_products_id ==
-                            dto.ProductId.Value &&
-                            x.is_active == true,
-                        cancellationToken);
-
-            if (!productExists)
-            {
-                throw new InvalidOperationException(
-                    "Указанный ИТ-продукт не найден или неактивен.");
-            }
-        }
-
-        var workflow =
-            await _context.workflows
-                .FirstOrDefaultAsync(
+            var productExists = await _context.it_products
+                .AnyAsync(
                     x =>
-                        x.workflows_id ==
-                            dto.WorkflowId.Value &&
+                        x.it_products_id == dto.ProductId.Value &&
                         x.is_active == true,
                     cancellationToken);
 
-        if (workflow is null)
-        {
-            throw new InvalidOperationException(
-                "Workflow не найден или неактивен.");
+            if (!productExists)
+            {
+                throw new InvalidOperationException("Указанный ИТ-продукт не найден или неактивен.");
+            }
         }
 
-        var initialStatus =
-            await _context.workflow_statuses
-                .Where(x =>
-                    x.workflow_id ==
-                        dto.WorkflowId.Value &&
-                    x.is_initial == true)
-                .OrderBy(x => x.sort_order)
-                .FirstOrDefaultAsync(
-                    cancellationToken);
+        var workflow = await _context.workflows
+            .FirstOrDefaultAsync(
+                x =>
+                    x.workflows_id == dto.WorkflowId.Value &&
+                    x.is_active == true,
+                cancellationToken);
+
+        if (workflow is null)
+        {
+            throw new InvalidOperationException("Workflow не найден или неактивен.");
+        }
+
+        var initialStatus = await _context.workflow_statuses
+            .Where(x =>
+                x.workflow_id == dto.WorkflowId.Value &&
+                x.is_initial == true)
+            .OrderBy(x => x.sort_order)
+            .FirstOrDefaultAsync(cancellationToken);
 
         if (initialStatus is null)
         {
-            throw new InvalidOperationException(
-                "Для workflow не задан начальный статус.");
+            throw new InvalidOperationException("Для workflow не задан начальный статус.");
         }
 
         if (dto.ManagerId.HasValue)
         {
-            var managerExists =
-                await _context.users
-                    .AnyAsync(
-                        x =>
-                            x.users_id ==
-                                dto.ManagerId.Value &&
-                            x.is_active == true,
-                        cancellationToken);
+            var managerExists = await _context.users
+                .AnyAsync(
+                    x =>
+                        x.users_id == dto.ManagerId.Value &&
+                        x.is_active == true,
+                    cancellationToken);
 
             if (!managerExists)
             {
-                throw new InvalidOperationException(
-                    "Ответственный пользователь не найден или неактивен.");
+                throw new InvalidOperationException("Ответственный пользователь не найден или неактивен.");
             }
         }
 
         if (dto.UniversityContactId.HasValue)
         {
-            var contactExists =
-                await _context.university_contacts
-                    .AnyAsync(
-                        x =>
-                            x.university_contacts_id ==
-                                dto.UniversityContactId.Value &&
-                            x.university_id ==
-                                dto.UniversityId.Value &&
-                            x.is_active == true,
-                        cancellationToken);
+            var contactExists = await _context.university_contacts
+                .AnyAsync(
+                    x =>
+                        x.university_contacts_id == dto.UniversityContactId.Value &&
+                        x.university_id == dto.UniversityId.Value &&
+                        x.is_active == true,
+                    cancellationToken);
 
             if (!contactExists)
             {
@@ -560,22 +342,18 @@ public class InteractionService : IInteractionService
             program_id = dto.ProgramId,
             product_id = dto.ProductId,
             manager_id = dto.ManagerId,
-            university_contact_id =
-                dto.UniversityContactId,
+            university_contact_id = dto.UniversityContactId,
             workflow_id = dto.WorkflowId,
-            current_status_id =
-                initialStatus.workflow_statuses_id,
+            current_status_id = initialStatus.workflow_statuses_id,
             contract_id = dto.ContractId,
             license_id = dto.LicenseId,
             created_at = DateTime.UtcNow,
             updated_at = DateTime.UtcNow
         };
 
-        _context.interactions.Add(
-            interaction);
+        _context.interactions.Add(interaction);
 
-        await _context.SaveChangesAsync(
-            cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
 
         await _auditService.WriteAsync(
             "CREATE",
@@ -597,17 +375,12 @@ public class InteractionService : IInteractionService
             },
             cancellationToken);
 
-        // НОВОЕ (кэш): появилось новое взаимодействие — списки
-        // всех пользователей и статистика устарели. Карточка
-        // ещё ни у кого не закэширована, отдельно её сбрасывать
-        // не нужно: вызов GetByIdAsync ниже сам положит её
-        // в кэш уже свежей.
-        await InvalidateInteractionsAsync(
-            cancellationToken);
+        // Новое взаимодействие — списки всех пользователей и статистика
+        // устарели. Отдельно карточку сбрасывать не нужно: GetByIdAsync
+        // ниже сам положит её в кэш уже свежей.
+        await InvalidateInteractionsAsync(cancellationToken);
 
-        return await GetByIdAsync(
-            interaction.interactions_id,
-            cancellationToken);
+        return await GetByIdAsync(interaction.interactions_id, cancellationToken);
     }
 
     public async Task<bool> ChangeStatusAsync(
@@ -617,17 +390,13 @@ public class InteractionService : IInteractionService
     {
         if (!dto.ToStatusId.HasValue)
         {
-            throw new ArgumentException(
-                "ToStatusId обязателен.");
+            throw new ArgumentException("ToStatusId обязателен.");
         }
 
-        var interaction =
-            await _context.interactions
-                .FirstOrDefaultAsync(
-                    x =>
-                        x.interactions_id ==
-                        interactionId,
-                    cancellationToken);
+        var interaction = await _context.interactions
+            .FirstOrDefaultAsync(
+                x => x.interactions_id == interactionId,
+                cancellationToken);
 
         if (interaction is null)
         {
@@ -639,11 +408,8 @@ public class InteractionService : IInteractionService
             return false;
         }
 
-        var hasAccess =
-            await _accessService
-                .HasAccessToUniversityAsync(
-                    interaction.university_id.Value,
-                    cancellationToken);
+        var hasAccess = await _accessService
+            .HasAccessToUniversityAsync(interaction.university_id.Value, cancellationToken);
 
         if (!hasAccess)
         {
@@ -657,45 +423,34 @@ public class InteractionService : IInteractionService
                 "У interaction отсутствует workflow или текущий статус.");
         }
 
-        var targetStatus =
-            await _context.workflow_statuses
-                .FirstOrDefaultAsync(
-                    x =>
-                        x.workflow_statuses_id ==
-                        dto.ToStatusId.Value,
-                    cancellationToken);
+        var targetStatus = await _context.workflow_statuses
+            .FirstOrDefaultAsync(
+                x => x.workflow_statuses_id == dto.ToStatusId.Value,
+                cancellationToken);
 
         if (targetStatus is null)
         {
-            throw new InvalidOperationException(
-                "Целевой статус не найден.");
+            throw new InvalidOperationException("Целевой статус не найден.");
         }
 
-        if (targetStatus.workflow_id !=
-            interaction.workflow_id)
+        if (targetStatus.workflow_id != interaction.workflow_id)
         {
-            throw new InvalidOperationException(
-                "Целевой статус принадлежит другому workflow.");
+            throw new InvalidOperationException("Целевой статус принадлежит другому workflow.");
         }
 
-        if (interaction.current_status_id ==
-            dto.ToStatusId)
+        if (interaction.current_status_id == dto.ToStatusId)
         {
-            throw new InvalidOperationException(
-                "Interaction уже находится в указанном статусе.");
+            throw new InvalidOperationException("Interaction уже находится в указанном статусе.");
         }
 
-        var transition =
-            await _context.workflow_transitions
-                .FirstOrDefaultAsync(
-                    x =>
-                        x.workflow_id ==
-                            interaction.workflow_id &&
-                        x.from_status_id ==
-                            interaction.current_status_id &&
-                        x.to_status_id ==
-                            dto.ToStatusId.Value,
-                    cancellationToken);
+        // Разрешённость перехода проверяем по таблице workflow_transitions
+        var transition = await _context.workflow_transitions
+            .FirstOrDefaultAsync(
+                x =>
+                    x.workflow_id == interaction.workflow_id &&
+                    x.from_status_id == interaction.current_status_id &&
+                    x.to_status_id == dto.ToStatusId.Value,
+                cancellationToken);
 
         if (transition is null)
         {
@@ -703,56 +458,32 @@ public class InteractionService : IInteractionService
                 "Переход между указанными статусами запрещён текущим workflow.");
         }
 
-        var oldStatusId =
-            interaction.current_status_id;
+        var oldStatusId = interaction.current_status_id;
 
-        var oldStatusName =
-            await _context.workflow_statuses
-                .Where(x =>
-                    x.workflow_statuses_id ==
-                    oldStatusId.Value)
-                .Select(x => x.name)
-                .FirstOrDefaultAsync(
-                    cancellationToken);
+        var oldStatusName = await _context.workflow_statuses
+            .Where(x => x.workflow_statuses_id == oldStatusId.Value)
+            .Select(x => x.name)
+            .FirstOrDefaultAsync(cancellationToken);
 
-        interaction.current_status_id =
-            dto.ToStatusId;
+        interaction.current_status_id = dto.ToStatusId;
+        interaction.updated_at = DateTime.UtcNow;
 
-        interaction.updated_at =
-            DateTime.UtcNow;
+        var databaseUserId = await _accessService
+            .GetCurrentDatabaseUserIdAsync(cancellationToken);
 
-        var databaseUserId =
-            await _accessService
-                .GetCurrentDatabaseUserIdAsync(
-                    cancellationToken);
+        var history = new interaction_status_history
+        {
+            interaction_id = interaction.interactions_id,
+            from_status_id = oldStatusId,
+            to_status_id = dto.ToStatusId,
+            changed_by = databaseUserId,
+            comment = dto.Comment,
+            changed_at = DateTime.UtcNow
+        };
 
-        var history =
-            new interaction_status_history
-            {
-                interaction_id =
-                    interaction.interactions_id,
+        _context.interaction_status_histories.Add(history);
 
-                from_status_id =
-                    oldStatusId,
-
-                to_status_id =
-                    dto.ToStatusId,
-
-                changed_by =
-                    databaseUserId,
-
-                comment =
-                    dto.Comment,
-
-                changed_at =
-                    DateTime.UtcNow
-            };
-
-        _context.interaction_status_histories.Add(
-            history);
-
-        await _context.SaveChangesAsync(
-            cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
 
         await _auditService.WriteAsync(
             "STATUS_CHANGE",
@@ -765,22 +496,16 @@ public class InteractionService : IInteractionService
             },
             new
             {
-                StatusId =
-                    targetStatus.workflow_statuses_id,
-                StatusName =
-                    targetStatus.name,
-                Comment =
-                    dto.Comment
+                StatusId = targetStatus.workflow_statuses_id,
+                StatusName = targetStatus.name,
+                Comment = dto.Comment
             },
             cancellationToken);
 
-        // НОВОЕ (кэш): сменился статус — устарели карточка
-        // (CurrentStatusName), списки (бейдж статуса), история
-        // (новая запись) и агрегаты статистики (byStatus).
-        // Один INCR сбрасывает всё разом; фронт при следующем
-        // запросе получит свежие данные без перезагрузки страницы.
-        await InvalidateInteractionsAsync(
-            cancellationToken);
+        // Сменился статус — устарели карточка (CurrentStatusName), списки
+        // (бейдж статуса), история (новая запись) и статистика (byStatus).
+        // Один INCR сбрасывает всё разом.
+        await InvalidateInteractionsAsync(cancellationToken);
 
         return true;
     }
@@ -792,97 +517,63 @@ public class InteractionService : IInteractionService
         // Доступ проверяем ДО кэша — иначе кэш мог бы отдать
         // историю чужого вуза. Проверка той же парой запросов,
         // что и в GetByIdAsync.
-        var universityId =
-            await _context.interactions
-                .AsNoTracking()
-                .Where(x =>
-                    x.interactions_id == interactionId)
-                .Select(x => x.university_id)
-                .FirstOrDefaultAsync(
-                    cancellationToken);
+        var universityId = await _context.interactions
+            .AsNoTracking()
+            .Where(x => x.interactions_id == interactionId)
+            .Select(x => x.university_id)
+            .FirstOrDefaultAsync(cancellationToken);
 
         if (universityId is null or 0)
         {
             return new List<InteractionStatusHistoryDto>();
         }
 
-        var hasAccess =
-            await _accessService
-                .HasAccessToUniversityAsync(
-                    universityId.Value,
-                    cancellationToken);
+        var hasAccess = await _accessService
+            .HasAccessToUniversityAsync(universityId.Value, cancellationToken);
 
         if (!hasAccess)
         {
             return new List<InteractionStatusHistoryDto>();
         }
 
-        // История хранится под ключом карточки: комментарии и
-        // переводы статуса инвалидируются тем же счётчиком,
-        // что и вся остальная информация о взаимодействиях.
+        // История версионируется тем же счётчиком interaction:version,
+        // что и карточка: комментарии и переводы статуса инвалидируются
+        // вместе со всем остальным.
         return await _cache.GetOrCreateAsync(
             CacheKeys.InteractionHistory(interactionId),
             _cacheOptions.InteractionTtl,
-            _ => LoadHistoryFromDatabaseAsync(
-                interactionId,
-                cancellationToken),
+            _ => LoadHistoryFromDatabaseAsync(interactionId, cancellationToken),
             cancellationToken);
     }
 
-    /// <summary>Исходная выборка истории (бывшее тело GetHistoryAsync).</summary>
+    /// <summary>Выборка истории из БД (промах кэша).</summary>
     private async Task<List<InteractionStatusHistoryDto>> LoadHistoryFromDatabaseAsync(
         int interactionId,
         CancellationToken cancellationToken)
     {
         return await _context.interaction_status_histories
             .AsNoTracking()
-            .Where(x =>
-                x.interaction_id ==
-                interactionId)
+            .Where(x => x.interaction_id == interactionId)
             .OrderByDescending(x => x.changed_at)
             .Select(x => new InteractionStatusHistoryDto
             {
-                Id =
-                    x.interaction_status_history_id,
-
-                InteractionId =
-                    x.interaction_id,
-
-                FromStatusId =
-                    x.from_status_id,
-
-                FromStatusName =
-                    x.from_status != null
-                        ? x.from_status.name
-                        : null,
-
-                ToStatusId =
-                    x.to_status_id,
-
-                ToStatusName =
-                    x.to_status != null
-                        ? x.to_status.name
-                        : null,
-
-                ChangedBy =
-                    x.changed_by,
-
+                Id = x.interaction_status_history_id,
+                InteractionId = x.interaction_id,
+                FromStatusId = x.from_status_id,
+                FromStatusName = x.from_status != null ? x.from_status.name : null,
+                ToStatusId = x.to_status_id,
+                ToStatusName = x.to_status != null ? x.to_status.name : null,
+                ChangedBy = x.changed_by,
                 // Колонки full_name нет: ФИО собирается из частей.
-                ChangedByName =
-                    x.changed_byNavigation == null
-                        ? null
-                        : x.changed_byNavigation.middle_name == null
-                            ? x.changed_byNavigation.last_name + " " + x.changed_byNavigation.first_name
-                            : x.changed_byNavigation.last_name + " " + x.changed_byNavigation.first_name + " " + x.changed_byNavigation.middle_name,
-
-                Comment =
-                    x.comment,
-
-                ChangedAt =
-                    x.changed_at
+                ChangedByName = x.changed_byNavigation == null
+                    ? null
+                    : x.changed_byNavigation.middle_name == null
+                        ? x.changed_byNavigation.last_name + " " + x.changed_byNavigation.first_name
+                        : x.changed_byNavigation.last_name + " " + x.changed_byNavigation.first_name + " " + x.changed_byNavigation.middle_name,
+                Comment = x.comment,
+                ChangedAt = x.changed_at
             })
-            .ToListAsync(
-                cancellationToken);
+            .ToListAsync(cancellationToken);
     }
 
     public async Task<InteractionDto?> UpdateAsync(
@@ -890,25 +581,19 @@ public class InteractionService : IInteractionService
         UpdateInteractionDto dto,
         CancellationToken cancellationToken)
     {
-        var interaction =
-            await _context.interactions
-                .FirstOrDefaultAsync(
-                    x =>
-                        x.interactions_id == id,
-                    cancellationToken);
+        var interaction = await _context.interactions
+            .FirstOrDefaultAsync(
+                x => x.interactions_id == id,
+                cancellationToken);
 
-        if (interaction is null ||
-            !interaction.university_id.HasValue)
+        if (interaction is null || !interaction.university_id.HasValue)
         {
             return null;
         }
 
         // Доступ к ТЕКУЩЕМУ вузу
-        var hasAccess =
-            await _accessService
-                .HasAccessToUniversityAsync(
-                    interaction.university_id.Value,
-                    cancellationToken);
+        var hasAccess = await _accessService
+            .HasAccessToUniversityAsync(interaction.university_id.Value, cancellationToken);
 
         if (!hasAccess)
         {
@@ -917,19 +602,14 @@ public class InteractionService : IInteractionService
 
         if (!dto.UniversityId.HasValue)
         {
-            throw new ArgumentException(
-                "UniversityId обязателен.");
+            throw new ArgumentException("UniversityId обязателен.");
         }
 
         // Если вуз меняется — проверяем доступ и к НОВОМУ вузу
-        if (dto.UniversityId.Value !=
-            interaction.university_id.Value)
+        if (dto.UniversityId.Value != interaction.university_id.Value)
         {
-            var hasNewAccess =
-                await _accessService
-                    .HasAccessToUniversityAsync(
-                        dto.UniversityId.Value,
-                        cancellationToken);
+            var hasNewAccess = await _accessService
+                .HasAccessToUniversityAsync(dto.UniversityId.Value, cancellationToken);
 
             if (!hasNewAccess)
             {
@@ -948,70 +628,58 @@ public class InteractionService : IInteractionService
 
         if (dto.ProgramId.HasValue)
         {
-            var programExists =
-                await _context.it_programs
-                    .AnyAsync(
-                        x =>
-                            x.it_programs_id ==
-                                dto.ProgramId.Value &&
-                            x.is_active == true,
-                        cancellationToken);
+            var programExists = await _context.it_programs
+                .AnyAsync(
+                    x =>
+                        x.it_programs_id == dto.ProgramId.Value &&
+                        x.is_active == true,
+                    cancellationToken);
 
             if (!programExists)
             {
-                throw new InvalidOperationException(
-                    "Указанная ИТ-программа не найдена или неактивна.");
+                throw new InvalidOperationException("Указанная ИТ-программа не найдена или неактивна.");
             }
         }
 
         if (dto.ProductId.HasValue)
         {
-            var productExists =
-                await _context.it_products
-                    .AnyAsync(
-                        x =>
-                            x.it_products_id ==
-                                dto.ProductId.Value &&
-                            x.is_active == true,
-                        cancellationToken);
+            var productExists = await _context.it_products
+                .AnyAsync(
+                    x =>
+                        x.it_products_id == dto.ProductId.Value &&
+                        x.is_active == true,
+                    cancellationToken);
 
             if (!productExists)
             {
-                throw new InvalidOperationException(
-                    "Указанный ИТ-продукт не найден или неактивен.");
+                throw new InvalidOperationException("Указанный ИТ-продукт не найден или неактивен.");
             }
         }
 
         if (dto.ManagerId.HasValue)
         {
-            var managerExists =
-                await _context.users
-                    .AnyAsync(
-                        x =>
-                            x.users_id ==
-                                dto.ManagerId.Value &&
-                            x.is_active == true,
-                        cancellationToken);
+            var managerExists = await _context.users
+                .AnyAsync(
+                    x =>
+                        x.users_id == dto.ManagerId.Value &&
+                        x.is_active == true,
+                    cancellationToken);
 
             if (!managerExists)
             {
-                throw new InvalidOperationException(
-                    "Ответственный пользователь не найден или неактивен.");
+                throw new InvalidOperationException("Ответственный пользователь не найден или неактивен.");
             }
         }
 
         if (dto.UniversityContactId.HasValue)
         {
-            var contactExists =
-                await _context.university_contacts
-                    .AnyAsync(
-                        x =>
-                            x.university_contacts_id ==
-                                dto.UniversityContactId.Value &&
-                            x.university_id ==
-                                dto.UniversityId.Value &&
-                            x.is_active == true,
-                        cancellationToken);
+            var contactExists = await _context.university_contacts
+                .AnyAsync(
+                    x =>
+                        x.university_contacts_id == dto.UniversityContactId.Value &&
+                        x.university_id == dto.UniversityId.Value &&
+                        x.is_active == true,
+                    cancellationToken);
 
             if (!contactExists)
             {
@@ -1044,16 +712,12 @@ public class InteractionService : IInteractionService
             },
             cancellationToken);
 
-        // НОВОЕ (кэш): изменились вуз/программа/продукт/менеджер —
-        // устарели карточка, списки (названия, ответственный)
-        // и статистика (агрегаты по всем этим измерениям).
-        // Вызов GetByIdAsync ниже вернёт и положит в кэш
+        // Изменились вуз/программа/продукт/менеджер — устарели карточка,
+        // списки и статистика. GetByIdAsync ниже вернёт и положит в кэш
         // уже свежую карточку.
         await InvalidateInteractionsAsync(cancellationToken);
 
-        return await GetByIdAsync(
-            interaction.interactions_id,
-            cancellationToken);
+        return await GetByIdAsync(interaction.interactions_id, cancellationToken);
     }
 
     public async Task<bool> AddCommentAsync(
@@ -1063,33 +727,26 @@ public class InteractionService : IInteractionService
     {
         if (string.IsNullOrWhiteSpace(dto.Comment))
         {
-            throw new ArgumentException(
-                "Комментарий не может быть пустым.");
+            throw new ArgumentException("Комментарий не может быть пустым.");
         }
 
-        var interaction =
-            await _context.interactions
-                .Where(x =>
-                    x.interactions_id == interactionId)
-                .Select(x => new
-                {
-                    x.interactions_id,
-                    x.university_id,
-                    x.current_status_id
-                })
-                .FirstOrDefaultAsync(cancellationToken);
+        var interaction = await _context.interactions
+            .Where(x => x.interactions_id == interactionId)
+            .Select(x => new
+            {
+                x.interactions_id,
+                x.university_id,
+                x.current_status_id
+            })
+            .FirstOrDefaultAsync(cancellationToken);
 
-        if (interaction is null ||
-            !interaction.university_id.HasValue)
+        if (interaction is null || !interaction.university_id.HasValue)
         {
             return false;
         }
 
-        var hasAccess =
-            await _accessService
-                .HasAccessToUniversityAsync(
-                    interaction.university_id.Value,
-                    cancellationToken);
+        var hasAccess = await _accessService
+            .HasAccessToUniversityAsync(interaction.university_id.Value, cancellationToken);
 
         if (!hasAccess)
         {
@@ -1098,37 +755,23 @@ public class InteractionService : IInteractionService
 
         if (!interaction.current_status_id.HasValue)
         {
-            throw new InvalidOperationException(
-                "У interaction отсутствует текущий статус.");
+            throw new InvalidOperationException("У interaction отсутствует текущий статус.");
         }
 
-        var databaseUserId =
-            await _accessService
-                .GetCurrentDatabaseUserIdAsync(cancellationToken);
+        var databaseUserId = await _accessService
+            .GetCurrentDatabaseUserIdAsync(cancellationToken);
 
         // Комментарий без смены статуса: from = to = текущий статус.
         // dto.StatusId на запись не влияет — привязка видна по текущему этапу.
-        var history =
-            new interaction_status_history
-            {
-                interaction_id =
-                    interaction.interactions_id,
-
-                from_status_id =
-                    interaction.current_status_id,
-
-                to_status_id =
-                    interaction.current_status_id,
-
-                changed_by =
-                    databaseUserId,
-
-                comment =
-                    dto.Comment.Trim(),
-
-                changed_at =
-                    DateTime.UtcNow
-            };
+        var history = new interaction_status_history
+        {
+            interaction_id = interaction.interactions_id,
+            from_status_id = interaction.current_status_id,
+            to_status_id = interaction.current_status_id,
+            changed_by = databaseUserId,
+            comment = dto.Comment.Trim(),
+            changed_at = DateTime.UtcNow
+        };
 
         _context.interaction_status_histories.Add(history);
 
@@ -1142,8 +785,7 @@ public class InteractionService : IInteractionService
             new { Comment = dto.Comment.Trim() },
             cancellationToken);
 
-        // НОВОЕ (кэш): комментарий добавляется в историю —
-        // кэш истории и карточки (updated_at) устарел.
+        // Комментарий добавился в историю — кэш истории устарел.
         await InvalidateInteractionsAsync(cancellationToken);
 
         return true;

@@ -9,32 +9,27 @@ namespace ITSchoolCRM.API.Services.Implementations;
 
 /// <summary>
 /// Сервис статусов workflow (этапов).
-///
-/// КЭШИРОВАНИЕ: сервис — точка записи, а не чтения. Горячее
-/// чтение схемы (статусы + переходы) обслуживает
-/// WorkflowService.GetByIdAsync под версионированным ключом
-/// workflow:{id}:v{workflow:{id}:version}. Этот сервис
-/// использует ТОТ ЖЕ версионный ключ для инвалидации — после
-/// любой мутации здесь кэш схемы сбрасывается, и фронт при
-/// следующем открытии карточки получает новую карту этапов.
-/// Отдельный кэш списков статусов (GetByWorkflowIdAsync,
-/// GetByIdAsync) сознательно не вводится: это дублирование
-/// данных схемы во втором кэшированном источнике, а значит —
-/// потенциальный рассинхрон.
-///
-/// ИНВАЛИДАЦИЯ: Create/Update/Delete после SaveChangesAsync
-/// сбрасывают два счётчика:
-///   • workflow:{workflowId}:version — кэш схемы этого
-///     workflow (общий ключ с WorkflowService/
-///     WorkflowTransitionService);
-///   • interaction:version — карточки и списки взаимодействий
-///     хранят CurrentStatusName, а история — FromStatusName/
-///     ToStatusName. Переименование этапа админом (единственная
-///     роль с этим правом — запрет заказчика 16.09.2026 12:16)
-///     обязано отразиться везде мгновенно.
-/// Трёхстрочный сброс дешевле анализа «какие именно ключи
-/// затронуты»: счётчики обновляются за миллисекунды.
 /// </summary>
+/// <remarks>
+/// КЭШИРОВАНИЕ: сервис — точка записи, а не чтения. Горячее чтение
+/// схемы (статусы + переходы) обслуживает WorkflowService.GetByIdAsync
+/// под версионированным ключом workflow:{id}:v{workflow:{id}:version}.
+/// Этот сервис использует ТОТ ЖЕ версионный ключ для инвалидации —
+/// после любой мутации здесь кэш схемы сбрасывается, и фронт при
+/// следующем открытии карточки получает новую карту этапов. Отдельный
+/// кэш списков статусов (GetByWorkflowIdAsync, GetByIdAsync) сознательно
+/// не вводится: это дублирование данных схемы во втором кэшированном
+/// источнике, а значит — потенциальный рассинхрон.
+///
+/// ИНВАЛИДАЦИЯ: Create/Update/Delete после SaveChangesAsync сбрасывают
+/// два счётчика:
+///   • workflow:{workflowId}:version — кэш схемы этого workflow
+///     (общий ключ с WorkflowService/WorkflowTransitionService);
+///   • interaction:version — карточки и списки взаимодействий хранят
+///     CurrentStatusName, а история — FromStatusName/ToStatusName.
+///     Переименование этапа админом (единственная роль с этим правом)
+///     обязано отразиться везде мгновенно.
+/// </remarks>
 public class WorkflowStatusService : IWorkflowStatusService
 {
     private readonly CrmDbContext _context;
@@ -52,22 +47,31 @@ public class WorkflowStatusService : IWorkflowStatusService
     }
 
     /// <summary>
-    /// Сброс кэша схемы конкретного workflow и всех
-    /// взаимодействий. workflowId известен во всех трёх
-    /// методах записи (в Create — из DTO, в Update/Delete —
-    /// из загруженной сущности статуса).
+    /// Сброс кэша схемы конкретного workflow и всех взаимодействий.
+    /// workflowId известен во всех трёх методах записи (в Create —
+    /// из DTO, в Update/Delete — из загруженной сущности статуса).
     /// </summary>
     private async Task InvalidateWorkflowAsync(
         int workflowId,
         CancellationToken cancellationToken)
     {
-        await _cache.BumpVersionAsync(
-            CacheKeys.WorkflowVersion(workflowId),
-            cancellationToken);
+        await _cache.BumpVersionAsync(CacheKeys.WorkflowVersion(workflowId), cancellationToken);
+        await _cache.BumpVersionAsync(CacheKeys.InteractionVersionKey, cancellationToken);
+    }
 
-        await _cache.BumpVersionAsync(
-            CacheKeys.InteractionVersionKey,
-            cancellationToken);
+    // Единая проекция сущности -> DTO
+    private static IQueryable<WorkflowStatusDto> ProjectToDto(IQueryable<workflow_status> query)
+    {
+        return query.Select(x => new WorkflowStatusDto
+        {
+            Id = x.workflow_statuses_id,
+            WorkflowId = x.workflow_id,
+            Name = x.name,
+            Description = x.description,
+            SortOrder = x.sort_order,
+            IsInitial = x.is_initial,
+            IsFinal = x.is_final
+        });
     }
 
     public async Task<List<WorkflowStatusDto>> GetByWorkflowIdAsync(
@@ -79,42 +83,21 @@ public class WorkflowStatusService : IWorkflowStatusService
         // этот эндпоинт — для точечных сценариев. Повторное
         // кэширование того же набора под другим ключом создало
         // бы два источника истины об этапах — не делаем.
-        return await _context.workflow_statuses
-            .AsNoTracking()
-            .Where(x => x.workflow_id == workflowId)
-            .OrderBy(x => x.sort_order)
-            .Select(x => new WorkflowStatusDto
-            {
-                Id = x.workflow_statuses_id,
-                WorkflowId = x.workflow_id,
-                Name = x.name,
-                Description = x.description,
-                SortOrder = x.sort_order,
-                IsInitial = x.is_initial,
-                IsFinal = x.is_final
-            })
+        return await ProjectToDto(
+                _context.workflow_statuses
+                    .AsNoTracking()
+                    .Where(x => x.workflow_id == workflowId)
+                    .OrderBy(x => x.sort_order))
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<WorkflowStatusDto?> GetByIdAsync(
-        int id,
-        CancellationToken cancellationToken)
+    public async Task<WorkflowStatusDto?> GetByIdAsync(int id, CancellationToken cancellationToken)
     {
-        // БЕЗ КЭША: точечный вызов (подсказки, валидации),
-        // обращений мало.
-        return await _context.workflow_statuses
-            .AsNoTracking()
-            .Where(x => x.workflow_statuses_id == id)
-            .Select(x => new WorkflowStatusDto
-            {
-                Id = x.workflow_statuses_id,
-                WorkflowId = x.workflow_id,
-                Name = x.name,
-                Description = x.description,
-                SortOrder = x.sort_order,
-                IsInitial = x.is_initial,
-                IsFinal = x.is_final
-            })
+        // БЕЗ КЭША: точечный вызов (подсказки, валидации), обращений мало.
+        return await ProjectToDto(
+                _context.workflow_statuses
+                    .AsNoTracking()
+                    .Where(x => x.workflow_statuses_id == id))
             .FirstOrDefaultAsync(cancellationToken);
     }
 
@@ -124,39 +107,33 @@ public class WorkflowStatusService : IWorkflowStatusService
     {
         if (!dto.WorkflowId.HasValue)
         {
-            throw new ArgumentException(
-                "WorkflowId обязателен.");
+            throw new ArgumentException("WorkflowId обязателен.");
         }
 
         if (string.IsNullOrWhiteSpace(dto.Name))
         {
-            throw new ArgumentException(
-                "Название статуса обязательно.");
+            throw new ArgumentException("Название статуса обязательно.");
         }
 
-        var workflow =
-            await _context.workflows
-                .FirstOrDefaultAsync(
-                    x =>
-                        x.workflows_id ==
-                        dto.WorkflowId.Value,
-                    cancellationToken);
+        var workflow = await _context.workflows
+            .FirstOrDefaultAsync(
+                x => x.workflows_id == dto.WorkflowId.Value,
+                cancellationToken);
 
         if (workflow is null)
         {
             return null;
         }
 
+        // Начальный статус в workflow один: повторное назначение запрещено
         if (dto.IsInitial == true)
         {
-            var existingInitial =
-                await _context.workflow_statuses
-                    .AnyAsync(
-                        x =>
-                            x.workflow_id ==
-                                dto.WorkflowId.Value &&
-                            x.is_initial == true,
-                        cancellationToken);
+            var existingInitial = await _context.workflow_statuses
+                .AnyAsync(
+                    x =>
+                        x.workflow_id == dto.WorkflowId.Value &&
+                        x.is_initial == true,
+                    cancellationToken);
 
             if (existingInitial)
             {
@@ -177,14 +154,10 @@ public class WorkflowStatusService : IWorkflowStatusService
 
         _context.workflow_statuses.Add(status);
 
-        workflow.version =
-            (workflow.version ?? 0) + 1;
+        workflow.version = (workflow.version ?? 0) + 1;
+        workflow.updated_at = DateTime.UtcNow;
 
-        workflow.updated_at =
-            DateTime.UtcNow;
-
-        await _context.SaveChangesAsync(
-            cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
 
         await _auditService.WriteAsync(
             "CREATE",
@@ -203,16 +176,11 @@ public class WorkflowStatusService : IWorkflowStatusService
             },
             cancellationToken);
 
-        // НОВОЕ (кэш): главный сценарий сервиса — «Добавить
-        // статус» админом на странице «Взаимодействия». Новый
-        // этап обязан появиться на карте workflow у ВСЕХ
-        // взаимодействий этого workflow немедленно (фронт
-        // перечитывает схему после закрытия модалки — без
-        // инвалидации увидел бы старую карту до истечения TTL).
-        // workflow найден и проверен выше — id берём из DTO.
-        await InvalidateWorkflowAsync(
-            dto.WorkflowId.Value,
-            cancellationToken);
+        // Главный сценарий сервиса — «Добавить статус» админом.
+        // Новый этап обязан появиться на карте workflow у ВСЕХ
+        // взаимодействий этого workflow немедленно (фронт перечитывает
+        // схему после закрытия модалки). workflowId из DTO.
+        await InvalidateWorkflowAsync(dto.WorkflowId.Value, cancellationToken);
 
         return new WorkflowStatusDto
         {
@@ -231,29 +199,24 @@ public class WorkflowStatusService : IWorkflowStatusService
         UpdateWorkflowStatusDto dto,
         CancellationToken cancellationToken)
     {
-        var status =
-            await _context.workflow_statuses
-                .FirstOrDefaultAsync(
-                    x =>
-                        x.workflow_statuses_id == id,
-                    cancellationToken);
+        var status = await _context.workflow_statuses
+            .FirstOrDefaultAsync(x => x.workflow_statuses_id == id, cancellationToken);
 
         if (status is null)
         {
             return false;
         }
 
+        // Начальный статус в workflow один (с исключением самого себя)
         if (dto.IsInitial == true)
         {
-            var anotherInitial =
-                await _context.workflow_statuses
-                    .AnyAsync(
-                        x =>
-                            x.workflow_id ==
-                                status.workflow_id &&
-                            x.workflow_statuses_id != id &&
-                            x.is_initial == true,
-                        cancellationToken);
+            var anotherInitial = await _context.workflow_statuses
+                .AnyAsync(
+                    x =>
+                        x.workflow_id == status.workflow_id &&
+                        x.workflow_statuses_id != id &&
+                        x.is_initial == true,
+                    cancellationToken);
 
             if (anotherInitial)
             {
@@ -298,25 +261,18 @@ public class WorkflowStatusService : IWorkflowStatusService
             status.is_final = dto.IsFinal.Value;
         }
 
-        var workflow =
-            await _context.workflows
-                .FirstOrDefaultAsync(
-                    x =>
-                        x.workflows_id ==
-                        status.workflow_id,
-                    cancellationToken);
+        var workflow = await _context.workflows
+            .FirstOrDefaultAsync(
+                x => x.workflows_id == status.workflow_id,
+                cancellationToken);
 
         if (workflow is not null)
         {
-            workflow.version =
-                (workflow.version ?? 0) + 1;
-
-            workflow.updated_at =
-                DateTime.UtcNow;
+            workflow.version = (workflow.version ?? 0) + 1;
+            workflow.updated_at = DateTime.UtcNow;
         }
 
-        await _context.SaveChangesAsync(
-            cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
 
         await _auditService.WriteAsync(
             "UPDATE",
@@ -335,42 +291,30 @@ public class WorkflowStatusService : IWorkflowStatusService
             },
             cancellationToken);
 
-        // НОВОЕ (кэш): переименование этапа (право только у
-        // администратора — запрет заказчика 16.09.2026 12:16),
-        // смена описания, порядка (sort_order — порядок узлов
-        // на карте) или флагов is_initial/is_final (доступность
-        // переводов) — всё это зашито в кэш схемы и в кэши
-        // карточек/списков (CurrentStatusName). workflow_id —
-        // из загруженной сущности.
-        await InvalidateWorkflowAsync(
-            status.workflow_id!.Value,
-            cancellationToken);
+        // Переименование (право только у администратора), смена описания,
+        // порядка (sort_order — порядок узлов на карте) или флагов
+        // is_initial/is_final — всё это зашито в кэш схемы и в кэши
+        // карточек (CurrentStatusName). workflow_id — из сущности.
+        await InvalidateWorkflowAsync(status.workflow_id!.Value, cancellationToken);
 
         return true;
     }
 
-    public async Task<bool> DeleteAsync(
-        int id,
-        CancellationToken cancellationToken)
+    public async Task<bool> DeleteAsync(int id, CancellationToken cancellationToken)
     {
-        var status =
-            await _context.workflow_statuses
-                .FirstOrDefaultAsync(
-                    x =>
-                        x.workflow_statuses_id == id,
-                    cancellationToken);
+        var status = await _context.workflow_statuses
+            .FirstOrDefaultAsync(x => x.workflow_statuses_id == id, cancellationToken);
 
         if (status is null)
         {
             return false;
         }
 
-        var used =
-            await _context.interactions
-                .AnyAsync(
-                    x =>
-                        x.current_status_id == id,
-                    cancellationToken);
+        // Удаление возможно, только если статус нигде не используется:
+        // ни как текущий у взаимодействий, ни в истории, ни в переходах.
+        // Иначе остались бы ссылки на несуществующий этап.
+        var used = await _context.interactions
+            .AnyAsync(x => x.current_status_id == id, cancellationToken);
 
         if (used)
         {
@@ -378,13 +322,12 @@ public class WorkflowStatusService : IWorkflowStatusService
                 "Нельзя удалить статус, который используется interaction.");
         }
 
-        var hasHistory =
-            await _context.interaction_status_histories
-                .AnyAsync(
-                    x =>
-                        x.from_status_id == id ||
-                        x.to_status_id == id,
-                    cancellationToken);
+        var hasHistory = await _context.interaction_status_histories
+            .AnyAsync(
+                x =>
+                    x.from_status_id == id ||
+                    x.to_status_id == id,
+                cancellationToken);
 
         if (hasHistory)
         {
@@ -392,13 +335,12 @@ public class WorkflowStatusService : IWorkflowStatusService
                 "Нельзя удалить статус, который присутствует в истории.");
         }
 
-        var hasTransitions =
-            await _context.workflow_transitions
-                .AnyAsync(
-                    x =>
-                        x.from_status_id == id ||
-                        x.to_status_id == id,
-                    cancellationToken);
+        var hasTransitions = await _context.workflow_transitions
+            .AnyAsync(
+                x =>
+                    x.from_status_id == id ||
+                    x.to_status_id == id,
+                cancellationToken);
 
         if (hasTransitions)
         {
@@ -417,27 +359,20 @@ public class WorkflowStatusService : IWorkflowStatusService
             status.is_final
         };
 
-        var workflow =
-            await _context.workflows
-                .FirstOrDefaultAsync(
-                    x =>
-                        x.workflows_id ==
-                        status.workflow_id,
-                    cancellationToken);
+        var workflow = await _context.workflows
+            .FirstOrDefaultAsync(
+                x => x.workflows_id == status.workflow_id,
+                cancellationToken);
 
         _context.workflow_statuses.Remove(status);
 
         if (workflow is not null)
         {
-            workflow.version =
-                (workflow.version ?? 0) + 1;
-
-            workflow.updated_at =
-                DateTime.UtcNow;
+            workflow.version = (workflow.version ?? 0) + 1;
+            workflow.updated_at = DateTime.UtcNow;
         }
 
-        await _context.SaveChangesAsync(
-            cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
 
         await _auditService.WriteAsync(
             "DELETE",
@@ -447,12 +382,8 @@ public class WorkflowStatusService : IWorkflowStatusService
             null,
             cancellationToken);
 
-        // НОВОЕ (кэш): этап удалён (допустимо, только если не
-        // используется — проверки выше) — карта workflow и
-        // допустимые переходы изменились.
-        await InvalidateWorkflowAsync(
-            status.workflow_id!.Value,
-            cancellationToken);
+        // Этап удалён — карта workflow и допустимые переходы изменились.
+        await InvalidateWorkflowAsync(status.workflow_id!.Value, cancellationToken);
 
         return true;
     }

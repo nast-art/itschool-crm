@@ -1,0 +1,150 @@
+/* ============================================================
+   Страница «Вузы»: фильтры с кнопкой «Применить», таблица, действия
+   ============================================================ */
+
+/* Панель фильтров: 4 поля + кнопки справа (по макету) */
+.filters-grid--uni {
+  grid-template-columns: repeat(4, minmax(150px, 1fr)) auto;
+  align-items: end;
+}
+
+@media (max-width: 1100px) {
+  .filters-grid--uni {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .filters-actions {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 640px) {
+  .filters-grid--uni {
+    grid-template-columns: 1fr;
+  }
+
+  /* Кнопки «Применить»/«Сбросить» — друг под другом, во всю ширину:
+     в один ряд на 360px они не влезают */
+  .filters-actions {
+    grid-column: 1 / -1;
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+  }
+
+  .filters-actions .btn-primary,
+  .filters-actions .btn-ghost {
+    width: 100%;
+  }
+}
+
+.filters-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  align-self: end;          /* нижний край — на уровне input/select */
+  padding-bottom: 1px;      /* компенсация бордера полей, если нужно */
+}
+
+/* Обе кнопки фильтров — одинаковой высоты (как поля) и выравнивание */
+.filters-actions .btn-primary,
+.filters-actions .btn-ghost {
+  height: 47px;
+  padding: 0 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+/* ---------- Таблица вузов ----------
+Без горизонтальной прокрутки: фиксированная раскладка колонок
+(table-layout: fixed) + перенос текста. Таблица всегда вписывается
+в ширину контейнера.
+На мобильном (≤720px) превращается в карточки — см. base.css. */
+.uni-table {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+}
+
+.uni-table th,
+.uni-table td {
+  white-space: normal;        /* перенос вместо обрезки */
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  vertical-align: top;
+  font-size: 13px;
+  padding: 10px 8px;
+}
+
+/* Пропорции колонок (сумма ~100%) */
+.uni-table th:nth-child(1),
+.uni-table td:nth-child(1) { width: 15%; } /* Название вуза */
+.uni-table th:nth-child(2),
+.uni-table td:nth-child(2) { width: 8%; }  /* Вендор */
+.uni-table th:nth-child(3),
+.uni-table td:nth-child(3) { width: 12%; } /* ПО */
+.uni-table th:nth-child(4),
+.uni-table td:nth-child(4) { width: 9%; }  /* № Договора */
+.uni-table th:nth-child(5),
+.uni-table td:nth-child(5) { width: 9%; }  /* Подписание лицензии */
+.uni-table th:nth-child(6),
+.uni-table td:nth-child(6) { width: 7%; }  /* Срок действия */
+.uni-table th:nth-child(7),
+.uni-table td:nth-child(7) { width: 12%; } /* Статус передачи */
+.uni-table th:nth-child(8),
+.uni-table td:nth-child(8) { width: 10%; } /* Менеджер */
+.uni-table th:nth-child(9),
+.uni-table td:nth-child(9) { width: 11%; } /* Ответственные */
+.uni-table th:nth-child(10),
+.uni-table td:nth-child(10) { width: 10%; } /* Комментарий */
+
+/* Название вуза — жирное, но переносится */
+.uni-table .col-university {
+  font-weight: 600;
+}
+
+/* Комментарий переносится построчно (вместо обрезки многоточием) */
+.uni-table .col-comment {
+  white-space: normal;
+  word-break: break-word;
+}
+
+/* ---------- Бейдж статуса передачи: компактный с красивым переносом ----------
+Перенос по словам, без многоточия; text-wrap: balance раскладывает
+строки ровно (вторая строка не длиннее первой), если браузер поддерживает. */
+.uni-table .status-badge {
+  display: inline-block;
+  max-width: 100%;
+  padding: 3px 10px;
+  font-size: 11px;
+  line-height: 1.35;
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: normal;
+  text-wrap: balance;
+  text-align: center;
+  vertical-align: middle;
+}
+
+/* Колонка действий и кнопки в строках */
+.col-actions {
+  width: 56px;
+  white-space: nowrap;
+}
+
+.row-action {
+  width: 32px;
+  height: 32px;
+}
+
+/* Широкая модалка «Добавить вуз» (много полей по маппингу ТЗ) */
+.modal--wide {
+  width: min(640px, 100%);
+}
+
+/* Отступ пагинации от таблицы (пейджер не «прилипает» к разделителю) */
+.panel .pagination {
+  margin-top: 18px;
+  padding-top: 2px;
+}

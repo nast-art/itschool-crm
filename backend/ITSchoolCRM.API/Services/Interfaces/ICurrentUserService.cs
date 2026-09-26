@@ -15,10 +15,6 @@ namespace ITSchoolCRM.API.Services.Interfaces
 
         string? Email { get; }
 
-        /// <summary>
-        /// Полное имя из claim "name" (firstName + lastName из Keycloak).
-        /// Может отсутствовать в токене — тогда null.
-        /// </summary>
         string? FullName { get; }
 
         IReadOnlyList<string> Roles { get; }

@@ -36,17 +36,11 @@ public static class FilterHash
     /// </summary>
     public static string Compute(object filter)
     {
-        var json = JsonSerializer.Serialize(
-            filter,
-            Options);
-
-        var bytes = SHA256.HashData(
-            Encoding.UTF8.GetBytes(json));
+        var json = JsonSerializer.Serialize(filter, Options);
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(json));
 
         // Convert.ToHexString даёт верхний регистр; приводим
         // к нижнему для единообразия ключей
-        return Convert
-            .ToHexString(bytes)[..16]
-            .ToLowerInvariant();
+        return Convert.ToHexString(bytes)[..16].ToLowerInvariant();
     }
 }

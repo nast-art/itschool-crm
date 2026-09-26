@@ -8,15 +8,16 @@ namespace ITSchoolCRM.API.Services.Implementations;
 
 /// <summary>
 /// Сервис справочника пользователей.
-///
+/// </summary>
+/// <remarks>
 /// КЭШИРОВАНИЕ (KeyDB, cache-aside):
 ///   - GetAllAsync → один общий ключ catalog:users:v{catalog:version}.
 ///     Список не фильтруется по доступу (фильтр «Ответственный»
-///     и назначение менеджеров доступны всем ролям по ТЗ) — скоп
+///     и назначение менеджеров доступны всем ролям) — скоп
 ///     пользователя в ключе не нужен;
 ///   - Записей в этом сервисе нет: users наполняется только
 ///     синхронизацией из Keycloak (UserSyncService). Инвалидация
-///     живёт там — см. правку UserSyncService ниже.
+///     живёт там.
 ///
 /// ПОЧЕМУ НЕ КЭШИРОВАТЬ ФИО ТОЧЕЧНО: ФИО пользователя проецируется
 /// в InteractionDto.ManagerName и ReportRowDto.ResponsibleName.
@@ -24,46 +25,36 @@ namespace ITSchoolCRM.API.Services.Implementations;
 /// искать «в каких взаимодействиях он менеджер» — проще и
 /// дешевле один INCR interaction:version, который сбрасывает
 /// и списки взаимодействий, и статистику целиком.
-/// </summary>
+/// </remarks>
 public class UserService : IUserService
 {
     private readonly CrmDbContext _context;
     private readonly ICacheService _cache;
     private readonly CacheOptions _cacheOptions;
 
-    public UserService(
-        CrmDbContext context,
-        ICacheService cache,
-        CacheOptions cacheOptions)
+    public UserService(CrmDbContext context, ICacheService cache, CacheOptions cacheOptions)
     {
         _context = context;
         _cache = cache;
         _cacheOptions = cacheOptions;
     }
 
-    public async Task<List<UserDto>> GetAllAsync(
-        CancellationToken cancellationToken)
+    public async Task<List<UserDto>> GetAllAsync(CancellationToken cancellationToken)
     {
         // Ключ без скопа: список одинаков для всех ролей.
-        // Промах → загрузка из PostgreSQL, результат в KeyDB
-        // с TTL CatalogTtl (по умолчанию 600 сек). Инвалидация —
-        // INCR catalog:version в UserSyncService.UpsertAsync.
-        return await _cache.GetOrCreateAsync(
-            CacheKeys.Catalog(CacheKeys.Users),
+        // Инвалидация — INCR catalog:version в UserSyncService.UpsertAsync.
+        return await _cache.GetOrCreateAsync(CacheKeys.Catalog(CacheKeys.Users),
             _cacheOptions.CatalogTtl,
-            _ => LoadAllFromDatabaseAsync(
-                cancellationToken),
+            _ => LoadAllFromDatabaseAsync(cancellationToken),
             cancellationToken);
     }
 
     /// <summary>
-    /// Исходная выборка пользователей (бывшее тело GetAllAsync).
-    /// Только активные — неактивные не должны попадать в фильтры
-    /// «Ответственный» и в назначение менеджеров (п. 11 ТЗ:
-    /// деактивация немедленно лишает доступа).
+    /// Выборка пользователей из БД (промах кэша). Только активные —
+    /// неактивные не должны попадать в фильтры «Ответственный»
+    /// и в назначение менеджеров: деактивация немедленно лишает доступа.
     /// </summary>
-    private async Task<List<UserDto>> LoadAllFromDatabaseAsync(
-        CancellationToken cancellationToken)
+    private async Task<List<UserDto>> LoadAllFromDatabaseAsync(CancellationToken cancellationToken)
     {
         return await _context.users
             .AsNoTracking()

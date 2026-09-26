@@ -13,36 +13,25 @@ public class WorkflowTransitionsController : ControllerBase
 {
     private readonly IWorkflowTransitionService _service;
 
-    public WorkflowTransitionsController(
-        IWorkflowTransitionService service)
+    public WorkflowTransitionsController(IWorkflowTransitionService service)
     {
         _service = service;
     }
 
     [HttpGet("workflow/{workflowId:int}")]
     [Authorize(Policy = Policies.UserAccess)]
-    public async Task<ActionResult<List<WorkflowTransitionDto>>> GetByWorkflow(
-        int workflowId,
-        CancellationToken cancellationToken)
+    public async Task<ActionResult<List<WorkflowTransitionDto>>> GetByWorkflow(int workflowId, CancellationToken cancellationToken)
     {
-        var transitions =
-            await _service.GetByWorkflowIdAsync(
-                workflowId,
-                cancellationToken);
+        var transitions = await _service.GetByWorkflowIdAsync(workflowId, cancellationToken);
 
         return Ok(transitions);
     }
 
     [HttpGet("{id:int}")]
     [Authorize(Policy = Policies.UserAccess)]
-    public async Task<ActionResult<WorkflowTransitionDto>> GetById(
-        int id,
-        CancellationToken cancellationToken)
+    public async Task<ActionResult<WorkflowTransitionDto>> GetById(int id, CancellationToken cancellationToken)
     {
-        var transition =
-            await _service.GetByIdAsync(
-                id,
-                cancellationToken);
+        var transition = await _service.GetByIdAsync(id, cancellationToken);
 
         if (transition is null)
         {
@@ -54,41 +43,24 @@ public class WorkflowTransitionsController : ControllerBase
 
     [HttpPost]
     [Authorize(Policy = Policies.AdminAccess)]
-    public async Task<ActionResult<WorkflowTransitionDto>> Create(
-        [FromBody] CreateWorkflowTransitionDto dto,
-        CancellationToken cancellationToken)
+    public async Task<ActionResult<WorkflowTransitionDto>> Create([FromBody] CreateWorkflowTransitionDto dto, CancellationToken cancellationToken)
     {
-        var transition =
-            await _service.CreateAsync(
-                dto,
-                cancellationToken);
+        var transition = await _service.CreateAsync(dto, cancellationToken);
 
+        // null = workflow или один из статусов из DTO не найден
         if (transition is null)
         {
             return NotFound();
         }
 
-        return CreatedAtAction(
-            nameof(GetById),
-            new
-            {
-                id = transition.Id
-            },
-            transition);
+        return CreatedAtAction(nameof(GetById), new { id = transition.Id }, transition);
     }
 
     [HttpPut("{id:int}")]
     [Authorize(Policy = Policies.AdminAccess)]
-    public async Task<IActionResult> Update(
-        int id,
-        [FromBody] UpdateWorkflowTransitionDto dto,
-        CancellationToken cancellationToken)
+    public async Task<IActionResult> Update(int id, [FromBody] UpdateWorkflowTransitionDto dto, CancellationToken cancellationToken)
     {
-        var result =
-            await _service.UpdateAsync(
-                id,
-                dto,
-                cancellationToken);
+        var result = await _service.UpdateAsync(id, dto, cancellationToken);
 
         if (!result)
         {
@@ -100,14 +72,9 @@ public class WorkflowTransitionsController : ControllerBase
 
     [HttpDelete("{id:int}")]
     [Authorize(Policy = Policies.AdminAccess)]
-    public async Task<IActionResult> Delete(
-        int id,
-        CancellationToken cancellationToken)
+    public async Task<IActionResult> Delete(int id, CancellationToken cancellationToken)
     {
-        var result =
-            await _service.DeleteAsync(
-                id,
-                cancellationToken);
+        var result = await _service.DeleteAsync(id, cancellationToken);
 
         if (!result)
         {

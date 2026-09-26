@@ -7,19 +7,12 @@ namespace ITSchoolCRM.API.Integrations.Common
 {
     public class IntegrationException : Exception
     {
-        public IntegrationException(
-            string errorCode,
-            string message)
-            : base(message)
+        public IntegrationException(string errorCode, string message) : base(message)
         {
             ErrorCode = errorCode;
         }
 
-        public IntegrationException(
-            string errorCode,
-            string message,
-            Exception innerException)
-            : base(message, innerException)
+        public IntegrationException(string errorCode, string message, Exception innerException) : base(message, innerException)
         {
             ErrorCode = errorCode;
         }

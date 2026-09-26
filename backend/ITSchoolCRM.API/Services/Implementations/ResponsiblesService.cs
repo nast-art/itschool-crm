@@ -16,20 +16,16 @@ public class ResponsiblesService : IResponsiblesService
         _db = db;
     }
 
-    // ---------------------------------------------------------------
-    // GET managers
-    // ---------------------------------------------------------------
+    /// <inheritdoc />
+    /// <remarks>
+    /// «Менеджеры школы» — пользователи, уже фигурирующие как ответственные:
+    /// закреплены за вузами (university_managers) и/или назначены менеджером
+    /// взаимодействия (interactions.manager_id). Так назначения, сделанные
+    /// со страницы «Вузы» (PUT /Interactions/{id}), здесь не теряются.
+    /// </remarks>
     public async Task<List<ResponsibleManagerDto>> GetManagersAsync(
         CancellationToken ct = default)
     {
-        // Пользователи, которые уже фигурируют как ответственные:
-        // закреплены за вузами (university_managers) и/или назначены
-        // менеджером взаимодействия (interactions.manager_id).
-        // Так назначения, сделанные со страницы «Вузы»
-        // (PUT /Interactions/{id}), здесь не теряются.
-        // ВАЖНО: user_id и manager_id в заскафолденных сущностях — int?,
-        // поэтому сначала отсекаем NULL, потом берём .Value —
-        // иначе Union не скомпилируется (IQueryable<int?> vs IQueryable<int>).
         var responsibleUserIds = await _db.university_managers
             .Where(um => um.user_id != null)
             .Select(um => um.user_id!.Value)
@@ -75,7 +71,6 @@ public class ResponsiblesService : IResponsiblesService
                 Id = u.users_id,
                 FullName = BuildFullName(u),
                 Email = u.email,
-                // user.is_active — bool? (так заскафолдило из БД)
                 IsActive = u.is_active ?? false,
                 UniversitiesCount = unis.Count,
                 Universities = unis.Select(a => new ResponsibleUniversityDto
@@ -87,16 +82,14 @@ public class ResponsiblesService : IResponsiblesService
         }).ToList();
     }
 
-    // ---------------------------------------------------------------
-    // PUT managers/{userId}/universities
-    // ---------------------------------------------------------------
     public async Task<ResponsibleManagerDto> UpdateManagerUniversitiesAsync(
         int userId,
         UpdateManagerUniversitiesDto dto,
         int? actingUserId,
         CancellationToken ct = default)
     {
-        var user = await _db.users.FirstOrDefaultAsync(u => u.users_id == userId, ct)
+        var user = await _db.users
+            .FirstOrDefaultAsync(u => u.users_id == userId, ct)
             ?? throw new KeyNotFoundException($"Пользователь с id={userId} не найден.");
 
         var requestedIds = (dto.UniversityIds ?? new List<int>())
@@ -111,6 +104,7 @@ public class ResponsiblesService : IResponsiblesService
                 .ToListAsync(ct);
 
             var missing = requestedIds.Except(existingIds).ToList();
+
             if (missing.Count > 0)
             {
                 throw new InvalidDataException(
@@ -118,8 +112,7 @@ public class ResponsiblesService : IResponsiblesService
             }
         }
 
-        await using var tx = await _db.Database
-            .BeginTransactionAsync(ct);
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
 
         var oldAssignments = await _db.university_managers
             .Where(um => um.user_id == userId)
@@ -140,9 +133,8 @@ public class ResponsiblesService : IResponsiblesService
             });
         }
 
-        // ВАЖНО: в заскафолденной сущности audit_log поля
-        // old_data/new_data — string (jsonb), НЕ JsonDocument:
-        // сериализуем напрямую, без JsonDocument.Parse.
+        // В заскафолденной сущности audit_log поля old_data/new_data — string
+        // (jsonb), НЕ JsonDocument: сериализуем напрямую, без JsonDocument.Parse.
         _db.audit_logs.Add(new audit_log
         {
             user_id = actingUserId,
@@ -163,7 +155,8 @@ public class ResponsiblesService : IResponsiblesService
     }
 
     private async Task<ResponsibleManagerDto> BuildManagerDtoAsync(
-        int userId, CancellationToken ct)
+        int userId,
+        CancellationToken ct)
     {
         var user = await _db.users.FirstAsync(u => u.users_id == userId, ct);
 
@@ -181,25 +174,17 @@ public class ResponsiblesService : IResponsiblesService
             Id = user.users_id,
             FullName = BuildFullName(user),
             Email = user.email,
-            // user.is_active — bool?
             IsActive = user.is_active ?? false,
             UniversitiesCount = unis.Count,
             Universities = unis,
         };
     }
 
-    // ---------------------------------------------------------------
-    // GET contacts
-    // ---------------------------------------------------------------
     public async Task<List<UniversityContactDto>> GetContactsAsync(
         CancellationToken ct = default)
     {
         // Все контакты (активные и неактивные) — колонка «Статус»
         // в таблице должна быть содержательной.
-        // Типы заскафолденной сущности university_contact:
-        //   university_contacts_id — int (PK, НЕ nullable),
-        //   university_id — int? (FK, nullable),
-        //   is_active — bool? (nullable) — маппим с coalesce.
         return await _db.university_contacts
             .GroupJoin(_db.universities,
                 c => c.university_id,
@@ -222,9 +207,7 @@ public class ResponsiblesService : IResponsiblesService
             .ToListAsync(ct);
     }
 
-    // ---------------------------------------------------------------
-    // POST contacts
-    // ---------------------------------------------------------------
+    /// <inheritdoc />
     public async Task<UniversityContactDto> CreateContactAsync(
         SaveUniversityContactDto dto,
         int? actingUserId,
@@ -234,6 +217,7 @@ public class ResponsiblesService : IResponsiblesService
 
         var universityExists = await _db.universities
             .AnyAsync(u => u.universities_id == dto.UniversityId, ct);
+
         if (!universityExists)
         {
             throw new InvalidDataException("Выбранный вуз не найден.");
@@ -275,9 +259,6 @@ public class ResponsiblesService : IResponsiblesService
         return await BuildContactDtoAsync(contact, ct);
     }
 
-    // ---------------------------------------------------------------
-    // PUT contacts/{id}
-    // ---------------------------------------------------------------
     public async Task<UniversityContactDto> UpdateContactAsync(
         int id,
         SaveUniversityContactDto dto,
@@ -292,6 +273,7 @@ public class ResponsiblesService : IResponsiblesService
 
         var universityExists = await _db.universities
             .AnyAsync(u => u.universities_id == dto.UniversityId, ct);
+
         if (!universityExists)
         {
             throw new InvalidDataException("Выбранный вуз не найден.");
@@ -321,7 +303,6 @@ public class ResponsiblesService : IResponsiblesService
             user_id = actingUserId,
             action = "university_contact_updated",
             entity_type = "university_contact",
-            // university_contacts_id — int, coalesce не нужен
             entity_id = contact.university_contacts_id,
             old_data = JsonSerializer.Serialize(oldSnapshot),
             new_data = JsonSerializer.Serialize(new
@@ -342,21 +323,23 @@ public class ResponsiblesService : IResponsiblesService
         return await BuildContactDtoAsync(contact, ct);
     }
 
-    // ---------------------------------------------------------------
-    // DELETE contacts/{id} — мягкое удаление (is_active = false)
-    // ---------------------------------------------------------------
+    /// <inheritdoc />
+    /// <remarks>
+    /// Мягкое удаление (is_active = false), идемпотентно:
+    /// повторный вызов для неактивного контакта — тихий успех.
+    /// </remarks>
     public async Task DeleteContactAsync(
-        int id, int? actingUserId, CancellationToken ct = default)
+        int id,
+        int? actingUserId,
+        CancellationToken ct = default)
     {
         var contact = await _db.university_contacts
             .FirstOrDefaultAsync(c => c.university_contacts_id == id, ct)
             ?? throw new KeyNotFoundException($"Представитель с id={id} не найден.");
 
-        // is_active — bool?: проверяем через != true, чтобы не писать
-        // !contact.is_active (оператор ! над bool? не компилируется).
         if (contact.is_active != true)
         {
-            return; // идемпотентно: повторный вызов — тихий успех
+            return;
         }
 
         contact.is_active = false;
@@ -366,7 +349,6 @@ public class ResponsiblesService : IResponsiblesService
             user_id = actingUserId,
             action = "university_contact_deactivated",
             entity_type = "university_contact",
-            // university_contacts_id — int, coalesce не нужен
             entity_id = contact.university_contacts_id,
             old_data = JsonSerializer.Serialize(new { is_active = true }),
             new_data = JsonSerializer.Serialize(new { is_active = false }),
@@ -376,11 +358,9 @@ public class ResponsiblesService : IResponsiblesService
         await _db.SaveChangesAsync(ct);
     }
 
-    // ---------------------------------------------------------------
-    // Резолв текущего пользователя для аудита
-    // ---------------------------------------------------------------
     public async Task<int?> ResolveUserIdByKeycloakSubAsync(
-        string keycloakSub, CancellationToken ct = default)
+        string keycloakSub,
+        CancellationToken ct = default)
     {
         return await _db.users
             .Where(u => u.keycloak_user_id == keycloakSub)
@@ -388,11 +368,9 @@ public class ResponsiblesService : IResponsiblesService
             .FirstOrDefaultAsync(ct);
     }
 
-    // ---------------------------------------------------------------
-    // Хелперы
-    // ---------------------------------------------------------------
     private async Task<UniversityContactDto> BuildContactDtoAsync(
-        university_contact contact, CancellationToken ct)
+        university_contact contact,
+        CancellationToken ct)
     {
         var universityName = await _db.universities
             .Where(u => u.universities_id == contact.university_id)
@@ -401,7 +379,6 @@ public class ResponsiblesService : IResponsiblesService
 
         return new UniversityContactDto
         {
-            // university_contacts_id — int (PK), university_id — int?
             Id = contact.university_contacts_id,
             UniversityId = contact.university_id ?? 0,
             UniversityName = universityName,

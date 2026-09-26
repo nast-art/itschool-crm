@@ -15,10 +15,7 @@ public class AuthController : ControllerBase
     private readonly IAuthService _authService;
     private readonly IUserSyncService _userSyncService;
 
-    public AuthController(
-        ICurrentUserService currentUserService,
-        IAuthService authService,
-        IUserSyncService userSyncService)
+    public AuthController(ICurrentUserService currentUserService, IAuthService authService, IUserSyncService userSyncService)
     {
         _currentUserService = currentUserService;
         _authService = authService;
@@ -32,11 +29,9 @@ public class AuthController : ControllerBase
     /// автоматически попадают в БД CRM при первом обращении.
     /// </summary>
     [HttpGet("me")]
-    public async Task<IActionResult> GetCurrentUser(
-        CancellationToken cancellationToken)
+    public async Task<IActionResult> GetCurrentUser(CancellationToken cancellationToken)
     {
-        await _userSyncService.EnsureCurrentUserAsync(
-            cancellationToken);
+        await _userSyncService.EnsureCurrentUserAsync(cancellationToken);
 
         return Ok(new
         {
@@ -60,17 +55,12 @@ public class AuthController : ControllerBase
     /// </summary>
     [HttpPost("register")]
     [AllowAnonymous]
-    public async Task<IActionResult> Register(
-        [FromBody] RegisterDto dto,
-        CancellationToken cancellationToken)
+    public async Task<IActionResult> Register([FromBody] RegisterDto dto, CancellationToken cancellationToken)
     {
-        var keycloakUserId =
-            await _authService.RegisterAsync(
-                dto,
-                cancellationToken);
+        var keycloakUserId = await _authService.RegisterAsync(dto, cancellationToken);
 
-        // Копия пользователя в таблице users CRM (нужна для
-        // interactions.manager_id, university_managers.user_id и отчётов).
+        // Копия пользователя в таблице users CRM — нужна для
+        // interactions.manager_id, university_managers.user_id и отчётов.
         // full_name в таблице отсутствует — храним только части ФИО.
         await _userSyncService.UpsertAsync(
             keycloakUserId,
@@ -80,8 +70,7 @@ public class AuthController : ControllerBase
             dto.Email,
             cancellationToken);
 
-        return StatusCode(
-            StatusCodes.Status201Created,
+        return StatusCode(StatusCodes.Status201Created,
             new
             {
                 keycloakUserId,
@@ -95,14 +84,9 @@ public class AuthController : ControllerBase
     /// </summary>
     [HttpPost("login")]
     [AllowAnonymous]
-    public async Task<IActionResult> Login(
-        [FromBody] LoginDto dto,
-        CancellationToken cancellationToken)
+    public async Task<IActionResult> Login([FromBody] LoginDto dto, CancellationToken cancellationToken)
     {
-        var tokens =
-            await _authService.LoginAsync(
-                dto,
-                cancellationToken);
+        var tokens = await _authService.LoginAsync(dto, cancellationToken);
 
         if (tokens is null)
         {
@@ -125,14 +109,9 @@ public class AuthController : ControllerBase
     /// </summary>
     [HttpPost("refresh")]
     [AllowAnonymous]
-    public async Task<IActionResult> Refresh(
-        [FromBody] RefreshTokenDto dto,
-        CancellationToken cancellationToken)
+    public async Task<IActionResult> Refresh([FromBody] RefreshTokenDto dto, CancellationToken cancellationToken)
     {
-        var tokens =
-            await _authService.RefreshAsync(
-                dto.RefreshToken ?? string.Empty,
-                cancellationToken);
+        var tokens = await _authService.RefreshAsync(dto.RefreshToken ?? string.Empty, cancellationToken);
 
         if (tokens is null)
         {

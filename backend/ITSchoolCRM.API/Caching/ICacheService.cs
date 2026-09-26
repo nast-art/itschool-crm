@@ -25,11 +25,7 @@ public interface ICacheService
     /// <param name="ttl">Время жизни записи (из CacheOptions).</param>
     /// <param name="factory">Асинхронная загрузка значения при промахе.</param>
     /// <param name="ct">Токен отмены запроса.</param>
-    Task<T> GetOrCreateAsync<T>(
-        string key,
-        TimeSpan ttl,
-        Func<CancellationToken, Task<T>> factory,
-        CancellationToken ct = default);
+    Task<T> GetOrCreateAsync<T>(string key, TimeSpan ttl, Func<CancellationToken, Task<T>> factory, CancellationToken ct = default);
 
     /// <summary>
     /// Инвалидирует группу версионированных ключов: атомарно
@@ -39,12 +35,8 @@ public interface ICacheService
     /// </summary>
     /// <param name="versionKey">Счётчик: CacheKeys.CatalogVersion,
     /// CacheKeys.InteractionVersionKey или CacheKeys.WorkflowVersion(id).</param>
-    Task BumpVersionAsync(
-        string versionKey,
-        CancellationToken ct = default);
+    Task BumpVersionAsync(string versionKey, CancellationToken ct = default);
 
     /// <summary>Удаляет один конкретный ключ из кэша.</summary>
-    Task RemoveAsync(
-        string key,
-        CancellationToken ct = default);
+    Task RemoveAsync(string key, CancellationToken ct = default);
 }

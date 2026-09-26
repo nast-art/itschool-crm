@@ -7,12 +7,9 @@ namespace ITSchoolCRM.API.Services.Interfaces
 {
     public interface IUserAccessService
     {
-        Task<int?> GetCurrentDatabaseUserIdAsync(
-    CancellationToken cancellationToken);
+        Task<int?> GetCurrentDatabaseUserIdAsync(CancellationToken cancellationToken);
 
-        Task<bool> HasAccessToUniversityAsync(
-            int universityId,
-            CancellationToken cancellationToken);
+        Task<bool> HasAccessToUniversityAsync(int universityId, CancellationToken cancellationToken);
 
         IQueryable<int> GetAccessibleUniversityIds();
 

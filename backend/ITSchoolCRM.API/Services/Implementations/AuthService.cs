@@ -77,13 +77,10 @@ public class AuthService : IAuthService
     private string DefaultRole =>
         _configuration["Keycloak:DefaultRole"] ?? "user";
 
-    // ============================================================
-    // РЕГИСТРАЦИЯ
-    // ============================================================
-
-    public async Task<string> RegisterAsync(
-        RegisterDto dto,
-        CancellationToken cancellationToken)
+    /// <summary>
+    /// Регистрация через Admin API Keycloak. Возвращает keycloak id нового пользователя.
+    /// </summary>
+    public async Task<string> RegisterAsync(RegisterDto dto, CancellationToken cancellationToken)
     {
         // ---------- Валидация (вся здесь) ----------
         ValidateRegisterDto(dto);
@@ -93,35 +90,31 @@ public class AuthService : IAuthService
         var firstName = dto.FirstName!.Trim();
 
         // ---------- Сервисный токен Keycloak ----------
-        var serviceToken =
-            await GetServiceTokenAsync(cancellationToken);
+        var serviceToken = await GetServiceTokenAsync(cancellationToken);
 
-        using var client =
-            _httpClientFactory.CreateClient("Keycloak");
+        using var client = _httpClientFactory.CreateClient("Keycloak");
 
         client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", serviceToken);
 
-        // ---------- 1. Создание пользователя (логин = email) ----------
-        // В Keycloak уходят только штатные поля (имя и фамилия).
-        // Отчество здесь не передаётся — оно сохраняется в CRM (users.middle_name).
-        var createPayload =
-            new Dictionary<string, object?>
-            {
-                ["username"] = email,
-                ["email"] = email,
-                ["firstName"] = firstName,
-                ["lastName"] = lastName,
-                ["enabled"] = true,
-                ["emailVerified"] = true
-            };
+        // 1. Создание пользователя (логин = email).
+        // В Keycloak уходят только штатные поля (имя и фамилия);
+        // отчество здесь не передаётся — оно сохраняется в CRM (users.middle_name).
+        var createPayload = new Dictionary<string, object?>
+        {
+            ["username"] = email,
+            ["email"] = email,
+            ["firstName"] = firstName,
+            ["lastName"] = lastName,
+            ["enabled"] = true,
+            ["emailVerified"] = true
+        };
 
-        var createResponse =
-            await client.PostAsJsonAsync(
-                $"{KeycloakUrl}/admin/realms/{Realm}/users",
-                createPayload,
-                JsonOptions,
-                cancellationToken);
+        var createResponse = await client.PostAsJsonAsync(
+            $"{KeycloakUrl}/admin/realms/{Realm}/users",
+            createPayload,
+            JsonOptions,
+            cancellationToken);
 
         if (createResponse.StatusCode == HttpStatusCode.Conflict)
         {
@@ -131,9 +124,7 @@ public class AuthService : IAuthService
 
         if (!createResponse.IsSuccessStatusCode)
         {
-            var body =
-                await createResponse.Content.ReadAsStringAsync(
-                    cancellationToken);
+            var body = await createResponse.Content.ReadAsStringAsync(cancellationToken);
 
             throw new IntegrationException(
                 "KEYCLOAK_BAD_RESPONSE",
@@ -141,71 +132,62 @@ public class AuthService : IAuthService
         }
 
         // Keycloak возвращает id созданного пользователя в заголовке Location
-        var location =
-            createResponse.Headers.Location?.ToString()
+        var location = createResponse.Headers.Location?.ToString()
             ?? throw new IntegrationException(
                 "KEYCLOAK_BAD_RESPONSE",
                 "Keycloak не вернул идентификатор созданного пользователя.");
 
-        var userId =
-            location
-                .Split('/', StringSplitOptions.RemoveEmptyEntries)
-                .Last();
+        var userId = location
+            .Split('/', StringSplitOptions.RemoveEmptyEntries)
+            .Last();
 
-        // ---------- 2. Установка постоянного пароля ----------
-        var passwordResponse =
-            await client.PutAsJsonAsync(
-                $"{KeycloakUrl}/admin/realms/{Realm}/users/{userId}/reset-password",
-                new
-                {
-                    type = "password",
-                    value = dto.Password!,
-                    temporary = false
-                },
-                JsonOptions,
-                cancellationToken);
+        // 2. Установка постоянного пароля
+        var passwordResponse = await client.PutAsJsonAsync(
+            $"{KeycloakUrl}/admin/realms/{Realm}/users/{userId}/reset-password",
+            new
+            {
+                type = "password",
+                value = dto.Password!,
+                temporary = false
+            },
+            JsonOptions,
+            cancellationToken);
 
         if (!passwordResponse.IsSuccessStatusCode)
         {
-            var body =
-                await passwordResponse.Content.ReadAsStringAsync(
-                    cancellationToken);
+            var body = await passwordResponse.Content.ReadAsStringAsync(cancellationToken);
 
             throw new IntegrationException(
                 "KEYCLOAK_BAD_RESPONSE",
                 $"Не удалось установить пароль ({(int)passwordResponse.StatusCode}): {body}");
         }
 
-        // ---------- 2а. Снятие обязательных действий (required actions) ----------
+        // 2а. Снятие обязательных действий (required actions).
         // Keycloak может навесить их автоматически (default-настройки realm'а).
         // Пока required action не выполнено, login невозможен
         // ("Account is not fully set up") — поэтому снимаем принудительно.
-        var clearActionsResponse =
-            await client.PutAsJsonAsync(
-                $"{KeycloakUrl}/admin/realms/{Realm}/users/{userId}",
-                new
-                {
-                    requiredActions = Array.Empty<string>()
-                },
-                JsonOptions,
-                cancellationToken);
+        var clearActionsResponse = await client.PutAsJsonAsync(
+            $"{KeycloakUrl}/admin/realms/{Realm}/users/{userId}",
+            new
+            {
+                requiredActions = Array.Empty<string>()
+            },
+            JsonOptions,
+            cancellationToken);
 
         if (!clearActionsResponse.IsSuccessStatusCode)
         {
-            var actionsBody =
-                await clearActionsResponse.Content.ReadAsStringAsync(
-                    cancellationToken);
+            var actionsBody = await clearActionsResponse.Content.ReadAsStringAsync(cancellationToken);
 
             throw new IntegrationException(
                 "KEYCLOAK_BAD_RESPONSE",
                 $"Не удалось снять обязательные действия пользователя ({(int)clearActionsResponse.StatusCode}): {actionsBody}");
         }
 
-        // ---------- 3. Роль по умолчанию "user" ----------
-        var roleResponse =
-            await client.GetAsync(
-                $"{KeycloakUrl}/admin/realms/{Realm}/roles/{DefaultRole}",
-                cancellationToken);
+        // 3. Роль по умолчанию
+        var roleResponse = await client.GetAsync(
+            $"{KeycloakUrl}/admin/realms/{Realm}/roles/{DefaultRole}",
+            cancellationToken);
 
         if (!roleResponse.IsSuccessStatusCode)
         {
@@ -214,39 +196,31 @@ public class AuthService : IAuthService
                 $"Роль \"{DefaultRole}\" не найдена в Keycloak. Создайте realm-роль.");
         }
 
-        var roleJson =
-            await roleResponse.Content.ReadAsStringAsync(
-                cancellationToken);
+        var roleJson = await roleResponse.Content.ReadAsStringAsync(cancellationToken);
 
-        using var roleDocument =
-            JsonDocument.Parse(roleJson);
+        using var roleDocument = JsonDocument.Parse(roleJson);
 
-        var roleId =
-            roleDocument.RootElement.GetProperty("id").GetString()
+        var roleId = roleDocument.RootElement.GetProperty("id").GetString()
             ?? throw new IntegrationException(
                 "KEYCLOAK_BAD_RESPONSE",
                 "Keycloak вернул роль без идентификатора.");
 
-        var roleName =
-            roleDocument.RootElement.GetProperty("name").GetString()
+        var roleName = roleDocument.RootElement.GetProperty("name").GetString()
             ?? DefaultRole;
 
-        // ---------- 4. Назначение роли пользователю ----------
-        var assignResponse =
-            await client.PostAsJsonAsync(
-                $"{KeycloakUrl}/admin/realms/{Realm}/users/{userId}/role-mappings/realm",
-                new[]
-                {
-                    new { id = roleId, name = roleName }
-                },
-                JsonOptions,
-                cancellationToken);
+        // 4. Назначение роли пользователю
+        var assignResponse = await client.PostAsJsonAsync(
+            $"{KeycloakUrl}/admin/realms/{Realm}/users/{userId}/role-mappings/realm",
+            new[]
+            {
+                new { id = roleId, name = roleName }
+            },
+            JsonOptions,
+            cancellationToken);
 
         if (!assignResponse.IsSuccessStatusCode)
         {
-            var body =
-                await assignResponse.Content.ReadAsStringAsync(
-                    cancellationToken);
+            var body = await assignResponse.Content.ReadAsStringAsync(cancellationToken);
 
             throw new IntegrationException(
                 "KEYCLOAK_BAD_RESPONSE",
@@ -256,31 +230,25 @@ public class AuthService : IAuthService
         return userId;
     }
 
-    // ============================================================
-    // ВХОД
-    // ============================================================
-
-    public async Task<AuthTokenDto?> LoginAsync(
-        LoginDto dto,
-        CancellationToken cancellationToken)
+    /// <summary>
+    /// Вход (password grant). null = неверные учётные данные,
+    /// контроллер сам отдаст 401 ERR_INVALID_CREDENTIALS.
+    /// </summary>
+    public async Task<AuthTokenDto?> LoginAsync(LoginDto dto, CancellationToken cancellationToken)
     {
         // ---------- Валидация (вся здесь) ----------
         ValidateLoginDto(dto);
 
-        using var body =
-            new FormUrlEncodedContent(
-                new Dictionary<string, string>
-                {
-                    ["grant_type"] = "password",
-                    ["client_id"] = PublicClientId,
-                    ["username"] = dto.UserName!.Trim(),
-                    ["password"] = dto.Password!
-                });
+        using var body = new FormUrlEncodedContent(
+            new Dictionary<string, string>
+            {
+                ["grant_type"] = "password",
+                ["client_id"] = PublicClientId,
+                ["username"] = dto.UserName!.Trim(),
+                ["password"] = dto.Password!
+            });
 
-        var (json, errorDescription) =
-            await RequestTokenEndpointAsync(
-                body,
-                cancellationToken);
+        var (json, errorDescription) = await RequestTokenEndpointAsync(body, cancellationToken);
 
         if (json is null)
         {
@@ -299,32 +267,26 @@ public class AuthService : IAuthService
         return ParseTokenDto(json);
     }
 
-    // ============================================================
-    // ОБНОВЛЕНИЕ ТОКЕНОВ (refresh_token grant)
-    // ============================================================
-
-    public async Task<AuthTokenDto?> RefreshAsync(
-        string refreshToken,
-        CancellationToken cancellationToken)
+    /// <summary>
+    /// Обновление пары токенов (refresh_token grant). null = протухший/отозванный
+    /// refresh token, контроллер отдаст 401 ERR_SESSION_EXPIRED.
+    /// </summary>
+    public async Task<AuthTokenDto?> RefreshAsync(string refreshToken, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(refreshToken))
         {
             throw new ArgumentException("Refresh token обязателен.");
         }
 
-        using var body =
-            new FormUrlEncodedContent(
-                new Dictionary<string, string>
-                {
-                    ["grant_type"] = "refresh_token",
-                    ["client_id"] = PublicClientId,
-                    ["refresh_token"] = refreshToken
-                });
+        using var body = new FormUrlEncodedContent(
+            new Dictionary<string, string>
+            {
+                ["grant_type"] = "refresh_token",
+                ["client_id"] = PublicClientId,
+                ["refresh_token"] = refreshToken
+            });
 
-        var (json, _) =
-            await RequestTokenEndpointAsync(
-                body,
-                cancellationToken);
+        var (json, _) = await RequestTokenEndpointAsync(body, cancellationToken);
 
         if (json is null)
         {
@@ -336,10 +298,7 @@ public class AuthService : IAuthService
         return ParseTokenDto(json);
     }
 
-    // ============================================================
-    // ВАЛИДАЦИЯ (единственное место всех проверок)
-    // ============================================================
-
+    // Валидация — единственное место всех проверок входных данных.
     private static void ValidateRegisterDto(RegisterDto dto)
     {
         // ---------- Фамилия ----------
@@ -355,9 +314,7 @@ public class AuthService : IAuthService
             throw new ArgumentException("Фамилия должна содержать от 2 до 100 символов.");
         }
 
-        if (!System.Text.RegularExpressions.Regex.IsMatch(
-                lastName,
-                NameCharsPattern))
+        if (!System.Text.RegularExpressions.Regex.IsMatch(lastName, NameCharsPattern))
         {
             throw new ArgumentException(
                 "Фамилия может содержать только буквы (русские/латинские) и дефис.");
@@ -376,9 +333,7 @@ public class AuthService : IAuthService
             throw new ArgumentException("Имя должно содержать от 2 до 100 символов.");
         }
 
-        if (!System.Text.RegularExpressions.Regex.IsMatch(
-                firstName,
-                NameCharsPattern))
+        if (!System.Text.RegularExpressions.Regex.IsMatch(firstName, NameCharsPattern))
         {
             throw new ArgumentException(
                 "Имя может содержать только буквы (русские/латинские) и дефис.");
@@ -394,9 +349,7 @@ public class AuthService : IAuthService
                 throw new ArgumentException("Отчество должно содержать от 2 до 100 символов.");
             }
 
-            if (!System.Text.RegularExpressions.Regex.IsMatch(
-                    middleName,
-                    NameCharsPattern))
+            if (!System.Text.RegularExpressions.Regex.IsMatch(middleName, NameCharsPattern))
             {
                 throw new ArgumentException(
                     "Отчество может содержать только буквы (русские/латинские) и дефис.");
@@ -449,33 +402,26 @@ public class AuthService : IAuthService
         }
     }
 
-    // ============================================================
-    // ОБЩИЕ ХЕЛПЕРЫ KEYCLOAK
-    // ============================================================
-
     /// <summary>
     /// Обращение к token-endpoint Keycloak. При успехе возвращает тело ответа
     /// и null в поле ошибки; при ошибке гранта — null и error_description
     /// из ответа Keycloak. Сетевые сбои -> IntegrationException
     /// (502 KEYCLOAK_UNAVAILABLE).
     /// </summary>
-    private async Task<(string? Json, string? ErrorDescription)>
-        RequestTokenEndpointAsync(
-            FormUrlEncodedContent body,
-            CancellationToken cancellationToken)
+    private async Task<(string? Json, string? ErrorDescription)> RequestTokenEndpointAsync(
+        FormUrlEncodedContent body,
+        CancellationToken cancellationToken)
     {
-        using var client =
-            _httpClientFactory.CreateClient("Keycloak");
+        using var client = _httpClientFactory.CreateClient("Keycloak");
 
         HttpResponseMessage response;
 
         try
         {
-            response =
-                await client.PostAsync(
-                    $"{KeycloakUrl}/realms/{Realm}/protocol/openid-connect/token",
-                    body,
-                    cancellationToken);
+            response = await client.PostAsync(
+                $"{KeycloakUrl}/realms/{Realm}/protocol/openid-connect/token",
+                body,
+                cancellationToken);
         }
         catch (Exception ex)
             when (ex is HttpRequestException or TaskCanceledException)
@@ -492,15 +438,13 @@ public class AuthService : IAuthService
             // и прочие ошибки гранта: сообщаем контроллеру через null,
             // чтобы тот вернул осмысленный 401. error_description пригодится
             // для различения частных случаев (например, "not fully set up").
-            var errorJson =
-                await response.Content.ReadAsStringAsync(cancellationToken);
+            var errorJson = await response.Content.ReadAsStringAsync(cancellationToken);
 
             string? description = null;
 
             try
             {
-                using var errorDoc =
-                    JsonDocument.Parse(errorJson);
+                using var errorDoc = JsonDocument.Parse(errorJson);
 
                 if (errorDoc.RootElement.TryGetProperty(
                         "error_description",
@@ -517,8 +461,7 @@ public class AuthService : IAuthService
             return (null, description);
         }
 
-        var json =
-            await response.Content.ReadAsStringAsync(cancellationToken);
+        var json = await response.Content.ReadAsStringAsync(cancellationToken);
 
         return (json, null);
     }
@@ -529,56 +472,43 @@ public class AuthService : IAuthService
     /// </summary>
     private static AuthTokenDto ParseTokenDto(string json)
     {
-        using var document =
-            JsonDocument.Parse(json);
+        using var document = JsonDocument.Parse(json);
 
         var root = document.RootElement;
 
         return new AuthTokenDto
         {
-            AccessToken =
-                root.GetProperty("access_token").GetString(),
-
-            RefreshToken =
-                root.TryGetProperty("refresh_token", out var refresh)
-                    ? refresh.GetString()
-                    : null,
-
-            ExpiresIn =
-                root.TryGetProperty("expires_in", out var expires)
-                    ? expires.GetInt32()
-                    : 0
+            AccessToken = root.GetProperty("access_token").GetString(),
+            RefreshToken = root.TryGetProperty("refresh_token", out var refresh)
+                ? refresh.GetString()
+                : null,
+            ExpiresIn = root.TryGetProperty("expires_in", out var expires)
+                ? expires.GetInt32()
+                : 0
         };
     }
 
-    // ============================================================
-    // СЕРВИСНЫЙ ТОКЕН KEYCLOAK (client_credentials)
-    // ============================================================
-
-    private async Task<string> GetServiceTokenAsync(
-        CancellationToken cancellationToken)
+    /// <summary>Сервисный токен Admin API (client_credentials grant).</summary>
+    private async Task<string> GetServiceTokenAsync(CancellationToken cancellationToken)
     {
-        using var client =
-            _httpClientFactory.CreateClient("Keycloak");
+        using var client = _httpClientFactory.CreateClient("Keycloak");
 
-        using var body =
-            new FormUrlEncodedContent(
-                new Dictionary<string, string>
-                {
-                    ["grant_type"] = "client_credentials",
-                    ["client_id"] = AdminClientId,
-                    ["client_secret"] = AdminClientSecret
-                });
+        using var body = new FormUrlEncodedContent(
+            new Dictionary<string, string>
+            {
+                ["grant_type"] = "client_credentials",
+                ["client_id"] = AdminClientId,
+                ["client_secret"] = AdminClientSecret
+            });
 
         HttpResponseMessage response;
 
         try
         {
-            response =
-                await client.PostAsync(
-                    $"{KeycloakUrl}/realms/{Realm}/protocol/openid-connect/token",
-                    body,
-                    cancellationToken);
+            response = await client.PostAsync(
+                $"{KeycloakUrl}/realms/{Realm}/protocol/openid-connect/token",
+                body,
+                cancellationToken);
         }
         catch (Exception ex)
             when (ex is HttpRequestException or TaskCanceledException)
@@ -591,21 +521,16 @@ public class AuthService : IAuthService
 
         if (!response.IsSuccessStatusCode)
         {
-            var text =
-                await response.Content.ReadAsStringAsync(
-                    cancellationToken);
+            var text = await response.Content.ReadAsStringAsync(cancellationToken);
 
             throw new IntegrationException(
                 "KEYCLOAK_BAD_RESPONSE",
                 $"Keycloak вернул код {(int)response.StatusCode} при получении сервисного токена: {text}");
         }
 
-        var json =
-            await response.Content.ReadAsStringAsync(
-                cancellationToken);
+        var json = await response.Content.ReadAsStringAsync(cancellationToken);
 
-        using var document =
-            JsonDocument.Parse(json);
+        using var document = JsonDocument.Parse(json);
 
         return document.RootElement.GetProperty("access_token").GetString()
             ?? throw new IntegrationException(

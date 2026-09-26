@@ -14,34 +14,25 @@ public class ProductsController : ControllerBase
 {
     private readonly IProductService _service;
 
-    public ProductsController(
-        IProductService service)
+    public ProductsController(IProductService service)
     {
         _service = service;
     }
 
     [HttpGet]
     [Authorize(Policy = Policies.UserAccess)]
-    public async Task<ActionResult<List<ProductDto>>> GetAll(
-        CancellationToken cancellationToken)
+    public async Task<ActionResult<List<ProductDto>>> GetAll(CancellationToken cancellationToken)
     {
-        var products =
-            await _service.GetAllAsync(
-                cancellationToken);
+        var products = await _service.GetAllAsync(cancellationToken);
 
         return Ok(products);
     }
 
     [HttpGet("{id:int}")]
     [Authorize(Policy = Policies.UserAccess)]
-    public async Task<ActionResult<ProductDto>> GetById(
-        int id,
-        CancellationToken cancellationToken)
+    public async Task<ActionResult<ProductDto>> GetById(int id, CancellationToken cancellationToken)
     {
-        var product =
-            await _service.GetByIdAsync(
-                id,
-                cancellationToken);
+        var product = await _service.GetByIdAsync(id, cancellationToken);
 
         if (product is null)
         {
@@ -53,59 +44,36 @@ public class ProductsController : ControllerBase
 
     [HttpGet("active")]
     [Authorize(Policy = Policies.UserAccess)]
-    public async Task<ActionResult<List<ProductDto>>> GetActive(
-        CancellationToken cancellationToken)
+    public async Task<ActionResult<List<ProductDto>>> GetActive(CancellationToken cancellationToken)
     {
-        var products =
-            await _service.GetActiveAsync(
-                cancellationToken);
+        var products = await _service.GetActiveAsync(cancellationToken);
 
         return Ok(products);
     }
 
     [HttpGet("search")]
     [Authorize(Policy = Policies.UserAccess)]
-    public async Task<ActionResult<List<ProductDto>>> Search(
-        [FromQuery] string? search,
-        CancellationToken cancellationToken)
+    public async Task<ActionResult<List<ProductDto>>> Search([FromQuery] string? search, CancellationToken cancellationToken)
     {
-        var products =
-            await _service.SearchAsync(
-                search,
-                cancellationToken);
+        var products = await _service.SearchAsync(search, cancellationToken);
 
         return Ok(products);
     }
 
     [HttpPost]
     [Authorize(Policy = Policies.ManagerAccess)]
-    public async Task<ActionResult<ProductDto>> Create(
-        [FromBody] CreateProductDto dto,
-        CancellationToken cancellationToken)
+    public async Task<ActionResult<ProductDto>> Create([FromBody] CreateProductDto dto, CancellationToken cancellationToken)
     {
-        var product =
-            await _service.CreateAsync(
-                dto,
-                cancellationToken);
+        var product = await _service.CreateAsync(dto, cancellationToken);
 
-        return CreatedAtAction(
-            nameof(GetById),
-            new { id = product.Id },
-            product);
+        return CreatedAtAction(nameof(GetById), new { id = product.Id }, product);
     }
 
     [HttpPut("{id:int}")]
     [Authorize(Policy = Policies.ManagerAccess)]
-    public async Task<IActionResult> Update(
-        int id,
-        [FromBody] UpdateProductDto dto,
-        CancellationToken cancellationToken)
+    public async Task<IActionResult> Update(int id, [FromBody] UpdateProductDto dto, CancellationToken cancellationToken)
     {
-        var updated =
-            await _service.UpdateAsync(
-                id,
-                dto,
-                cancellationToken);
+        var updated = await _service.UpdateAsync(id, dto, cancellationToken);
 
         if (!updated)
         {
@@ -117,14 +85,9 @@ public class ProductsController : ControllerBase
 
     [HttpDelete("{id:int}")]
     [Authorize(Policy = Policies.AdminAccess)]
-    public async Task<IActionResult> Delete(
-        int id,
-        CancellationToken cancellationToken)
+    public async Task<IActionResult> Delete(int id, CancellationToken cancellationToken)
     {
-        var deleted =
-            await _service.DeleteAsync(
-                id,
-                cancellationToken);
+        var deleted = await _service.DeleteAsync(id, cancellationToken);
 
         if (!deleted)
         {

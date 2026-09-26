@@ -1,4 +1,4 @@
-using ITSchoolCRM.API.DTOs.Notifications;   // было: using ITSchoolCRM.API.DTOs;
+using ITSchoolCRM.API.DTOs.Notifications;  
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -16,18 +16,12 @@ namespace ITSchoolCRM.API.Services.Interfaces
     /// </summary>
     public interface INotificationService
     {
-        /// <summary>Уведомления для пользователя, от новых к старым.</summary>
-        Task<IReadOnlyList<NotificationDto>> GetForUserAsync(
-            int userId, IReadOnlyCollection<string> roles, CancellationToken ct);
+        Task<IReadOnlyList<NotificationDto>> GetForUserAsync(int userId, IReadOnlyCollection<string> roles, CancellationToken ct);
 
-        /// <summary>users.users_id по Keycloak sub (связь через keycloak_user_id).</summary>
         Task<int?> ResolveUserIdAsync(string keycloakUserId, CancellationToken ct);
 
-        /// <summary>Отметить одно уведомление прочитанным.</summary>
         Task MarkReadAsync(int userId, string notificationId, CancellationToken ct);
 
-        /// <summary>Отметить все ТЕКУЩИЕ уведомления прочитанными.
-        /// Роли нужны, чтобы не-админ не «потерял» часть списка.</summary>
         Task MarkAllReadAsync(int userId, IReadOnlyCollection<string> roles, CancellationToken ct);
     }
 }

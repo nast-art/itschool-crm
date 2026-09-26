@@ -1,0 +1,449 @@
+/* ============================================================
+   Страница «Ответственные»: вкладки по макету, таблица
+   (ФИО · Должность · Вузы · Статус), пикер вузов, модалки.
+   ============================================================ */
+
+/* Отступ пагинации от таблицы «Ответственные»
+   (пейджер не «прилипает» к разделителю) */
+.responsibles-panel .pagination {
+  margin-top: 18px;
+  padding-top: 2px;
+}
+
+/* ---------- Панель: вкладки слева, поиск справа ---------- */
+.responsibles-filterbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.responsibles-tabs {
+  display: inline-flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Вкладка меняет цвет при выборе (пометка на макете) */
+.responsibles-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--fg-soft);
+  background: var(--bg-elevated-2);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.responsibles-tab:hover {
+  border-color: var(--accent-border);
+  color: var(--fg-default);
+}
+
+.responsibles-tab.is-active {
+  background: var(--accent-bg);
+  border-color: var(--accent-default);
+  color: var(--accent-hover);
+  font-weight: 600;
+}
+
+.responsibles-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 1 360px;
+  min-width: 300px;
+  height: 40px;
+  padding: 0 34px 0 14px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-pill);
+  background: var(--bg-surface-2);
+  color: var(--fg-muted);
+  transition: var(--transition-fast);
+}
+
+.responsibles-search:focus-within {
+  border-color: var(--accent-default);
+  background: var(--bg-elevated-1);
+  box-shadow: 0 0 0 4px var(--accent-focus-ring);
+}
+
+.responsibles-search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--fg-default);
+}
+
+.responsibles-search input::placeholder {
+  color: var(--fg-disabled);
+}
+
+.responsibles-search-clear {
+  position: absolute;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.responsibles-search-clear:hover {
+  background: var(--accent-bg);
+  color: var(--accent-hover);
+}
+
+/* ---------- Заголовок таблицы + счётчик ---------- */
+.responsibles-table-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.responsibles-table-head h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.responsibles-table-head .panel-sub {
+  margin: 4px 0 0;
+}
+
+.responsibles-count {
+  min-width: 30px;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-bg);
+  color: var(--accent-hover);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}
+
+/* ---------- Таблица ---------- */
+.responsibles-table {
+  width: 100%;
+  table-layout: auto;
+}
+
+.responsibles-table th,
+.responsibles-table td {
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  vertical-align: top;
+  font-size: 14px;
+  padding: 12px;
+}
+
+.responsibles-table th {
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.responsibles-secondary {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+
+/* ---------- Колонка «Действия»: кнопки горизонтально ----------
+Обертка-строка внутри td: кнопки «Изменить» и «Удалить»
+идут в одну линию, как в таблице «Вузы». */
+.responsibles-actions-col {
+  width: 76px;
+  white-space: nowrap;
+}
+
+.responsibles-action-stack {
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+  align-items: center;
+}
+
+/* Внутри строки боковой отступ кнопок не нужен — зазор делает gap */
+.responsibles-action-stack .icon-action {
+  margin-right: 0;
+}
+
+.responsibles-danger-action:hover:not(:disabled) {
+  border-color: var(--error-default);
+  color: var(--error-default);
+}
+
+.responsibles-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 40px 0;
+  color: var(--fg-muted);
+}
+
+/* ---------- Модалки ---------- */
+.responsibles-manager-modal {
+  width: min(560px, 100%);
+}
+
+.responsibles-contact-modal {
+  width: min(680px, 100%);
+}
+
+.responsibles-manager-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated-2);
+}
+
+.responsibles-manager-summary-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-bg);
+  color: var(--accent-default);
+  flex-shrink: 0;
+}
+
+/* ---------- Пикер вузов (модалка менеджера) ---------- */
+.responsibles-picker {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated-1);
+  overflow: hidden;
+}
+
+.responsibles-picker-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.responsibles-picker-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 180px;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-pill);
+  background: var(--bg-surface-2);
+  color: var(--fg-muted);
+}
+
+.responsibles-picker-search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--fg-default);
+}
+
+.responsibles-picker-tools {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.responsibles-picker-count {
+  font-size: 12px;
+  color: var(--fg-muted);
+  white-space: nowrap;
+}
+
+.responsibles-picker-link {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--accent-default);
+  cursor: pointer;
+}
+
+.responsibles-picker-link:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.responsibles-picker-link:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.responsibles-picker-list {
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.responsibles-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  font-family: inherit;
+  font-size: 13.5px;
+  color: var(--fg-default);
+  text-align: left;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.responsibles-picker-item:hover:not(:disabled) {
+  background: var(--accent-bg);
+}
+
+.responsibles-picker-item.is-selected {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+}
+
+.responsibles-picker-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid var(--border-strong);
+  border-radius: var(--radius-xs);
+  background: var(--bg-elevated-1);
+  color: #ffffff;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.responsibles-picker-item.is-selected .responsibles-picker-check {
+  background: var(--accent-default);
+  border-color: var(--accent-default);
+}
+
+.responsibles-picker-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.responsibles-picker-empty {
+  padding: 18px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--fg-muted);
+}
+
+/* ---------- Форма представителя ---------- */
+.responsibles-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.responsibles-form-full {
+  grid-column: 1 / -1;
+}
+
+.responsibles-toggle-row {
+  display: flex;
+}
+
+.responsibles-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-pill);
+  background: var(--bg-elevated-2);
+  font-family: inherit;
+  font-size: 13.5px;
+  color: var(--fg-soft);
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.responsibles-toggle-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: var(--radius-pill);
+  background: var(--neutral-muted);
+  transition: var(--transition-fast);
+}
+
+.responsibles-toggle.is-on {
+  border-color: var(--success-default);
+  color: var(--fg-default);
+  background: var(--success-bg);
+}
+
+.responsibles-toggle.is-on .responsibles-toggle-dot {
+  background: var(--success-default);
+}
+
+/* ---------- Адаптив ---------- */
+@media (max-width: 720px) {
+  .responsibles-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .responsibles-filterbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .responsibles-search {
+    min-width: 0;
+  }
+
+  .responsibles-tabs {
+    width: 100%;
+  }
+
+  .responsibles-tab {
+    flex: 1;
+    justify-content: center;
+  }
+}

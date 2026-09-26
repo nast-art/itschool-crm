@@ -8,11 +8,8 @@ namespace ITSchoolCRM.API.Integrations.Website.Services
     /// </summary>
     public interface IWebsiteIntegrationService
     {
-        Task<List<WebsiteApplicationDto>> GetApplicationsAsync(
-            CancellationToken cancellationToken);
+        Task<List<WebsiteApplicationDto>> GetApplicationsAsync(CancellationToken cancellationToken);
 
-        Task PushInteractionAsync(
-            PushInteractionToWebsiteDto dto,
-            CancellationToken cancellationToken);
+        Task PushInteractionAsync(PushInteractionToWebsiteDto dto, CancellationToken cancellationToken);
     }
 }

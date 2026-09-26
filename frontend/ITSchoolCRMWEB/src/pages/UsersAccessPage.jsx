@@ -4,15 +4,17 @@
 // и управления правами пользователей, а также разграничение
 // пользователей по доступу к данным»).
 //
-// Макет: ДВЕ таблицы одна под другой —
+// Макет: ДВЕ таблицы одна под другой, обе видны всегда —
 //   1) «Пользователи»: ФИО · Роль · Статус · Действия
 //   2) «Права доступа, выбранного пользователя»:
 //      Раздел · Просмотр · Изменение · Удаление
-// Пометка на макете: «сделать переключение между пользователями
-// и правами, чтобы показывалась только нужная таблица (как в
-// странице ответственные)» — реализовано: на десктопе обе таблицы
-// видны одновременно (как на макете), на мобильных (≤860px) —
-// сегментированное переключение «Пользователи / Права доступа».
+// Переключатель таблиц намеренно НЕ используется: состав по макету,
+// на мобильном каждая таблица сама превращается в карточки.
+//
+// АДАПТИВНОСТЬ: у каждого <td> таблиц .access-users-table и
+// .access-rights-table есть data-label с названием колонки — на
+// мобильном (≤720px, см. base.css) таблицы превращаются в карточки
+// «подпись : значение». У колонки действий data-label нет.
 //
 // Пагинация таблицы пользователей: 5 строк на страницу (как в
 // «Вузах»), пейджер «‹ Страница X из Y ›» с ручным вводом номера.
@@ -35,8 +37,8 @@
 // и на бэкенде — иначе админ мог бы лишить себя последней роли).
 //
 // Нефункциональное требование 13 (кэш действий пользователя):
-// строка поиска и выбранная вкладка сохраняются в localStorage
-// и восстанавливаются между сессиями.
+// строка поиска сохраняется в localStorage
+// и восстанавливается между сессиями.
 
 import { useEffect, useMemo, useState } from 'react'
 import { api } from '../api/client'
@@ -122,11 +124,9 @@ const ACCESS_ROWS = [
   },
 ]
 
-// Ключи localStorage — кэш действий пользователя (требование 13)
+// Ключ localStorage — кэш действий пользователя (требование 13):
+// сохраняется только строка поиска (переключатель таблиц убран)
 const SEARCH_STORAGE_KEY = 'users_access_search'
-const TAB_STORAGE_KEY = 'users_access_tab'
-
-const VALID_TABS = ['users', 'rights']
 
 // ---------- Хелперы ----------
 
@@ -172,12 +172,6 @@ export default function UsersAccessPage() {
     () => localStorage.getItem(SEARCH_STORAGE_KEY) ?? '',
   )
 
-  // Мобильное переключение таблиц: 'users' | 'rights'
-  const [mobileTab, setMobileTab] = useState(() => {
-    const stored = localStorage.getItem(TAB_STORAGE_KEY)
-    return VALID_TABS.includes(stored) ? stored : 'users'
-  })
-
   // Пагинация таблицы пользователей
   const [page, setPage] = useState(1)
   const [pageInput, setPageInput] = useState('1')
@@ -213,10 +207,6 @@ export default function UsersAccessPage() {
   useEffect(() => {
     localStorage.setItem(SEARCH_STORAGE_KEY, search)
   }, [search])
-
-  useEffect(() => {
-    localStorage.setItem(TAB_STORAGE_KEY, mobileTab)
-  }, [mobileTab])
 
   // ---------- Фильтрация поиска ----------
 
@@ -345,32 +335,9 @@ export default function UsersAccessPage() {
         </div>
       )}
 
-      {/* Переключение таблиц — видно только на мобильных (≤860px).
-          На десктопе обе таблицы показаны одна под другой, как на макете. */}
-      <div className="access-tabs" role="tablist" aria-label="Таблицы раздела">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={mobileTab === 'users'}
-          className={mobileTab === 'users' ? 'access-tab is-active' : 'access-tab'}
-          onClick={() => setMobileTab('users')}
-        >
-          Пользователи
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={mobileTab === 'rights'}
-          className={mobileTab === 'rights' ? 'access-tab is-active' : 'access-tab'}
-          onClick={() => setMobileTab('rights')}
-        >
-          Права доступа
-        </button>
-      </div>
-
       <div className="access-layout">
         {/* ---------- Таблица 1 (по макету): Список пользователей ---------- */}
-        <section className="panel access-panel" hidden={mobileTab !== 'users'}>
+        <section className="panel access-panel">
           <div className="panel-head access-panel-head">
             <div>
               <h2>Пользователи</h2>
@@ -423,7 +390,7 @@ export default function UsersAccessPage() {
                           className={selected ? 'is-selected' : ''}
                           onClick={() => setSelectedId(item.keycloakUserId)}
                         >
-                          <td>
+                          <td data-label="ФИО">
                             <button
                               type="button"
                               className="access-user-name"
@@ -440,14 +407,14 @@ export default function UsersAccessPage() {
                               </div>
                             )}
                           </td>
-                          <td>
+                          <td data-label="Роль">
                             <span
                               className={`role-badge role-badge--${item.role}`}
                             >
                               {ROLE_LABELS[item.role] ?? item.role}
                             </span>
                           </td>
-                          <td>
+                          <td data-label="Статус">
                             <span
                               className={
                                 item.isActive
@@ -540,7 +507,7 @@ export default function UsersAccessPage() {
         </section>
 
         {/* ---------- Таблица 2 (по макету): права выбранного пользователя ---------- */}
-        <section className="panel access-panel" hidden={mobileTab !== 'rights'}>
+        <section className="panel access-panel">
           <div className="panel-head">
             <div>
               <h2>
@@ -572,18 +539,18 @@ export default function UsersAccessPage() {
                 <tbody>
                   {ACCESS_ROWS.map((row) => (
                     <tr key={row.section}>
-                      <td>{row.section}</td>
-                      <td className="access-center">
+                      <td data-label="Раздел">{row.section}</td>
+                      <td className="access-center" data-label="Просмотр">
                         <AccessMark
                           allowed={row.view.includes(selectedUser.role)}
                         />
                       </td>
-                      <td className="access-center">
+                      <td className="access-center" data-label="Изменение">
                         <AccessMark
                           allowed={row.edit.includes(selectedUser.role)}
                         />
                       </td>
-                      <td className="access-center">
+                      <td className="access-center" data-label="Удаление">
                         <AccessMark
                           allowed={row.remove.includes(selectedUser.role)}
                         />

@@ -29,6 +29,10 @@ import { IconPlus } from '../components/icons.jsx'
 //    прокручивается к строке. Без перехода на страницу строка не
 //    рендерится — отсюда было «открывается реестр, а не тот договор».
 //
+// АДАПТИВНОСТЬ: у каждого <td> таблицы .contracts-table есть
+// data-label с названием колонки — на мобильном (≤720px, см.
+// base.css) таблица превращается в карточки «подпись : значение».
+//
 // РОЛЕВАЯ МОДЕЛЬ (п. 11 ТЗ): user — просмотр; manager/admin —
 // добавление и редактирование (бэкенд дополнительно проверяет
 // Policies.ManagerAccess; отказ — 403).
@@ -607,20 +611,22 @@ export default function ContractsPage() {
                     }
                     title="Нажмите, чтобы открыть договор"
                   >
-                    <td className="contracts-number">{contract.contractNumber || '—'}</td>
-                    <td>
+                    <td className="contracts-number" data-label="№ Договора">
+                      {contract.contractNumber || '—'}
+                    </td>
+                    <td data-label="Вуз">
                       <span className="contracts-cell-text" title={listText(contract.universityNames)}>
                         {listText(contract.universityNames)}
                       </span>
                     </td>
-                    <td>
+                    <td data-label="ПО">
                       <span className="contracts-cell-text" title={listText(contract.productNames)}>
                         {listText(contract.productNames)}
                       </span>
                     </td>
-                    <td>{formatDate(contract.signedAt)}</td>
-                    <td>{formatUntil(contract.validUntil)}</td>
-                    <td>
+                    <td data-label="Подписан">{formatDate(contract.signedAt)}</td>
+                    <td data-label="Срок">{formatUntil(contract.validUntil)}</td>
+                    <td data-label="Статус">
                       <span className={statusClass(contract.status)}>
                         {contract.status || '—'}
                       </span>

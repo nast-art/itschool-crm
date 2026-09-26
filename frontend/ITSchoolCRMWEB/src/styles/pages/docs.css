@@ -1,0 +1,583 @@
+/* ============================================================
+   Страница «Документация» — док-центр в формате «ридер» с
+   фиксированной высотой: меню и контент скроллятся независимо,
+   смена главы не меняет высоту страницы (ничего не «дёргает»),
+   левое меню всегда на виду без прокрутки наверх.
+   ============================================================ */
+
+/* ---------- Каркас ридера ----------
+   Высота: от полного экрана отнимаем верхнюю панель (~64px),
+   шапку страницы с заголовком (~80px) и отступы (~86px). */
+.docs-layout {
+  display: grid;
+  grid-template-columns: 264px minmax(0, 1fr);
+  gap: 18px;
+  align-items: stretch;
+  height: calc(100dvh - 230px);
+  min-height: 460px;
+}
+
+/* ---------- Левое меню: своя прокрутка, всегда на месте ---------- */
+.docs-toc {
+  height: 100%;
+  overflow-y: auto;
+  background: var(--bg-elevated-1);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  padding: 14px 10px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--neutral-border) transparent;
+}
+
+.docs-toc::-webkit-scrollbar {
+  width: 6px;
+}
+
+.docs-toc::-webkit-scrollbar-thumb {
+  background: var(--neutral-border);
+  border-radius: var(--radius-pill);
+}
+
+/* Переключатель руководств («Пользователю» / «Администратору») */
+.docs-toc-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-soft);
+  margin-bottom: 10px;
+}
+
+.docs-toc-tab {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated-2);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg-soft);
+  text-align: left;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.docs-toc-tab:hover {
+  border-color: var(--accent-border);
+  color: var(--fg-default);
+  background: var(--accent-bg);
+}
+
+.docs-toc-tab.is-active {
+  border-color: var(--accent-default);
+  background: var(--accent-bg);
+  color: var(--accent-hover);
+  box-shadow: 0 0 0 3px var(--accent-focus-ring);
+}
+
+.docs-toc-tab svg {
+  color: var(--accent-default);
+  flex-shrink: 0;
+}
+
+/* Поиск в меню */
+.docs-toc-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 12px;
+  margin-bottom: 12px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-pill);
+  background: var(--bg-elevated-2);
+  color: var(--fg-muted);
+  transition: var(--transition-fast);
+}
+
+.docs-toc-search:focus-within {
+  border-color: var(--accent-default);
+  background: var(--bg-elevated-1);
+  box-shadow: 0 0 0 3px var(--accent-focus-ring);
+}
+
+.docs-toc-search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--fg-default);
+}
+
+.docs-toc-search input::placeholder {
+  color: var(--fg-disabled);
+}
+
+.docs-toc-title {
+  padding: 0 10px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+  border-bottom: 1px solid var(--border-soft);
+  margin-bottom: 8px;
+}
+
+.docs-toc nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.docs-toc-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--fg-soft);
+  text-align: left;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.docs-toc-link:hover {
+  background: var(--accent-bg);
+  color: var(--fg-default);
+}
+
+.docs-toc-link.is-active {
+  background: var(--accent-bg);
+  color: var(--accent-hover);
+  font-weight: 600;
+  box-shadow: inset 3px 0 0 var(--accent-default);
+}
+
+.docs-toc-link svg {
+  flex-shrink: 0;
+  color: var(--accent-default);
+}
+
+.docs-toc-empty {
+  margin: 0;
+  padding: 10px;
+  font-size: 13px;
+  color: var(--fg-muted);
+}
+
+/* ---------- Контент главы: своя прокрутка ---------- */
+.docs-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  height: 100%;
+  overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--neutral-border) transparent;
+}
+
+.docs-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.docs-content::-webkit-scrollbar-thumb {
+  background: var(--neutral-border);
+  border-radius: var(--radius-pill);
+}
+
+/* Блоки внутри скроллящейся области не сжимаются */
+.doc-chapter,
+.docs-intro,
+.docs-chapter-nav {
+  flex-shrink: 0;
+}
+
+/* Вступление активного руководства */
+.docs-intro {
+  background: linear-gradient(
+    160deg,
+    var(--bg-elevated-1) 55%,
+    var(--accent-bg) 100%
+  );
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.docs-intro h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.docs-intro p {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--fg-muted);
+}
+
+/* Глава — всегда развёрнута, заголовок без кнопки */
+.doc-chapter {
+  background: var(--bg-elevated-1);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.doc-chapter-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.doc-chapter-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-bg);
+  color: var(--accent-default);
+  flex-shrink: 0;
+}
+
+.doc-chapter-head h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.doc-chapter-body {
+  padding: 18px 20px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.doc-chapter-body .doc-p {
+  margin: 0;
+  font-size: 14.5px;
+  line-height: 1.7;
+  color: var(--fg-soft);
+}
+
+/* Пошаговая инструкция */
+.doc-steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: doc-step;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.doc-steps li {
+  counter-increment: doc-step;
+  position: relative;
+  padding-left: 38px;
+  font-size: 14.5px;
+  line-height: 1.65;
+  color: var(--fg-soft);
+}
+
+.doc-steps li::before {
+  content: counter(doc-step);
+  position: absolute;
+  left: 0;
+  top: 2px;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-bg);
+  color: var(--accent-hover);
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Иллюстрация экрана */
+.doc-figure {
+  margin: 6px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.doc-figure-img {
+  width: 100%;
+  height: auto;
+  display: block;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+}
+
+.doc-figure-illustration {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+  background: var(--bg-page);
+}
+
+.doc-figure-illustration .doc-shot-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.doc-figure figcaption {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--fg-muted);
+  text-align: center;
+}
+
+/* Врезка-подсказка */
+.doc-note {
+  margin: 0;
+  padding: 12px 16px;
+  border-left: 3px solid var(--accent-default);
+  border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
+  background: var(--accent-bg);
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--fg-soft);
+}
+
+/* ---------- Листание глав «Назад / Далее» ---------- */
+.docs-chapter-nav {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.docs-chapter-nav-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 14px 18px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated-1);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  color: var(--fg-default);
+  transition: var(--transition-base);
+  min-width: 0;
+}
+
+.docs-chapter-nav-btn:hover {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+  box-shadow: var(--shadow-card);
+}
+
+.docs-chapter-nav-btn.is-next {
+  align-items: flex-end;
+  text-align: right;
+}
+
+.docs-chapter-nav-btn.is-disabled {
+  visibility: hidden;
+}
+
+.docs-chapter-nav-dir {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent-default);
+}
+
+.docs-chapter-nav-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--fg-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+/* Ссылка «сбросить поиск» в пустом состоянии */
+.docs-reset-link {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-family: inherit;
+  font-size: inherit;
+  color: var(--accent-default);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.docs-reset-link:hover {
+  color: var(--accent-hover);
+}
+
+/* ---------- Планшет и мобильный: возвращаем обычный поток ----------
+   На узком экране ридер фиксированной высоты неудобен — меню
+   становится блоком над контентом, всё скроллится как обычная
+   страница. */
+@media (max-width: 1024px) {
+  .docs-layout {
+    grid-template-columns: 1fr;
+    height: auto;
+    min-height: 0;
+  }
+
+  .docs-toc {
+    height: auto;
+    max-height: 300px;
+  }
+
+  .docs-content {
+    height: auto;
+    overflow-y: visible;
+    padding-right: 0;
+  }
+}
+
+/* ---------- Архитектура решения ---------- */
+.arch-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.arch-card {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--bg-elevated-2);
+  transition: var(--transition-base);
+}
+
+.arch-card:hover {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+}
+
+.arch-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.arch-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-bg-strong);
+  color: var(--accent-hover);
+  flex-shrink: 0;
+}
+
+.arch-card h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.arch-card p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--fg-soft);
+}
+
+/* ---------- Таблица кодов ошибок ---------- */
+.codes-table {
+  width: 100%;
+  table-layout: auto;
+}
+
+.codes-table th,
+.codes-table td {
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  vertical-align: top;
+  font-size: 13px;
+  padding: 10px 12px;
+}
+
+.codes-table th {
+  white-space: nowrap;
+}
+
+.codes-code {
+  font-weight: 700;
+  color: var(--error-default);
+  white-space: nowrap;
+}
+
+.codes-name {
+  font-family: 'Cascadia Code', 'JetBrains Mono', Consolas, monospace;
+  font-size: 12px !important;
+  color: var(--fg-muted);
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .codes-table thead {
+    display: none;
+  }
+
+  .codes-table,
+  .codes-table tbody,
+  .codes-table tr,
+  .codes-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .codes-table tr {
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius-sm);
+    margin-bottom: 10px;
+    padding: 6px 4px;
+    background: var(--bg-elevated-2);
+  }
+
+  .codes-table td {
+    border-bottom: none;
+    padding: 4px 12px;
+  }
+
+  .codes-table td.codes-name {
+    padding-top: 0;
+  }
+}

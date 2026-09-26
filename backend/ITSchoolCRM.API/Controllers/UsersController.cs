@@ -13,8 +13,7 @@ public class UsersController : ControllerBase
 {
     private readonly IUserService _service;
 
-    public UsersController(
-        IUserService service)
+    public UsersController(IUserService service)
     {
         _service = service;
     }
@@ -23,12 +22,9 @@ public class UsersController : ControllerBase
     // модалка «Добавить вуз». ФИО фронт собирает из частей.
     [HttpGet]
     [Authorize(Policy = Policies.UserAccess)]
-    public async Task<ActionResult<List<UserDto>>> GetAll(
-        CancellationToken cancellationToken)
+    public async Task<ActionResult<List<UserDto>>> GetAll(CancellationToken cancellationToken)
     {
-        var users =
-            await _service.GetAllAsync(
-                cancellationToken);
+        var users = await _service.GetAllAsync(cancellationToken);
 
         return Ok(users);
     }

@@ -8,8 +8,7 @@ using System.Text.Json;
 namespace ITSchoolCRM.API.Controllers;
 
 /// <summary>
-/// Уведомления текущего пользователя (п. «уведомления не будут лишним»,
-/// 16.09.2026 12:40–12:41). Авторизация — JWT Keycloak (п. 10 ТЗ);
+/// Уведомления текущего пользователя. Авторизация — JWT Keycloak;
 /// пользователь и роли берутся из токена, users.keycloak_user_id —
 /// связь с БД CRM.
 /// </summary>
@@ -25,10 +24,9 @@ public class NotificationsController : ControllerBase
         _notifications = notifications;
     }
 
-    /// <summary>Уведомления текущего пользователя (по видимости из 152-ФЗ).</summary>
+    /// <summary>Уведомления текущего пользователя.</summary>
     [HttpGet]
-    public async Task<ActionResult<IReadOnlyList<NotificationDto>>> GetAll(
-        CancellationToken ct)
+    public async Task<ActionResult<IReadOnlyList<NotificationDto>>> GetAll(CancellationToken ct)
     {
         var (userId, roles) = await ResolveUserAsync(ct);
         if (userId == null)
@@ -70,12 +68,11 @@ public class NotificationsController : ControllerBase
         return NoContent();
     }
 
-    // ---------- Служебное ----------
-
-    /// <summary>Разрешаем Keycloak (sub + realm_access.roles) в users.users_id.
-    /// sub JWT = users.keycloak_user_id (п. 10 ТЗ + сид).</summary>
-    private async Task<(int? UserId, IReadOnlyCollection<string> Roles)> ResolveUserAsync(
-        CancellationToken ct)
+    /// <summary>
+    /// Разрешаем Keycloak (sub + realm_access.roles) в users.users_id.
+    /// sub JWT = users.keycloak_user_id.
+    /// </summary>
+    private async Task<(int? UserId, IReadOnlyCollection<string> Roles)> ResolveUserAsync(CancellationToken ct)
     {
         var keycloakId = User.FindFirstValue("sub");
         if (string.IsNullOrEmpty(keycloakId))
@@ -89,9 +86,13 @@ public class NotificationsController : ControllerBase
 
     private static IReadOnlyCollection<string> ExtractRoles(ClaimsPrincipal principal)
     {
-        // realm_access: { "roles": ["user","admin"] } — JSON в claim
+        // realm_access: { "roles": ["user","admin"] } — JSON в claim,
+        // роли отдельными claim-ами не приходят
         var raw = principal.FindFirstValue("realm_access");
-        if (string.IsNullOrEmpty(raw)) return Array.Empty<string>();
+        if (string.IsNullOrEmpty(raw))
+        {
+            return Array.Empty<string>();
+        }
 
         try
         {
@@ -111,6 +112,7 @@ public class NotificationsController : ControllerBase
             // неожиданный формат claim — считаем, что ролей нет;
             // бэкенд всё равно отдаст только свои данные
         }
+
         return Array.Empty<string>();
     }
 

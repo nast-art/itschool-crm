@@ -1,0 +1,225 @@
+/* ============================================================
+   Главная страница (дашборд)
+   ============================================================ */
+.dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.page-head h1 {
+  margin: 0;
+  font-size: 24px;
+}
+
+.page-sub {
+  margin: 4px 0 0;
+  font-size: 14px;
+  color: var(--fg-muted);
+}
+
+.page-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.page-actions .btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Единый размер кнопок действий в шапке страниц
+   (btn-primary и btn-ghost из коробки имеют разные padding/шрифт,
+   рядом выглядят неровно — приводим к одной высоте) */
+.page-actions .btn-ghost,
+.page-actions .btn-accent-soft {
+  padding: 12px 20px;
+  font-size: 15px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ---------- KPI ---------- */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.kpi {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--bg-elevated-1);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  padding: 18px 20px;
+  transition: var(--transition-base);
+}
+
+.kpi:hover {
+  box-shadow: var(--shadow-card);
+  transform: translateY(-2px);
+}
+
+.kpi-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  border-radius: var(--radius-md);
+  background: var(--accent-bg);
+  color: var(--accent-default);
+  flex-shrink: 0;
+}
+
+.kpi-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.kpi-label {
+  font-size: 12px;
+  color: var(--fg-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.kpi-value {
+  font-size: 26px;
+  color: var(--accent-default);
+  line-height: 1.1;
+}
+
+.kpi-hint { font-size: 11px; color: var(--fg-muted); }
+
+/* ---------- Графики ---------- */
+.dash-grid {
+  display: grid;
+  grid-template-columns: 1.25fr 1fr;
+  gap: 16px;
+}
+
+.panel {
+  background: var(--bg-elevated-1);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+}
+
+.panel h2 { margin: 0 0 16px; font-size: 18px; }
+
+.panel-sub {
+  margin: -10px 0 12px;
+  font-size: 13px;
+  color: var(--fg-muted);
+}
+
+.chart {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pie-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pie-legend li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--fg-soft);
+}
+
+.pie-legend li strong {
+  margin-left: auto;
+  color: var(--fg-default);
+}
+
+.pie-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-pill);
+  flex-shrink: 0;
+}
+
+.panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.panel-head h2 { margin: 0; }
+
+.panel-head .panel-sub {
+  margin: 4px 0 0;   /* вместо -10px из общего правила */
+}
+
+.panel-head .btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  text-decoration: none;   /* убрать подчёркивание у Link */
+}
+
+/* ---------- Фильтры дашборда: мультивыбор и сводный чип ---------- */
+.menu-check {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent-hover);
+}
+
+.menu-clear {
+  color: var(--accent-hover);
+  font-size: 13px;
+  justify-content: center !important;
+}
+
+/* ---------- Меню фильтров: пояснение и нулевые счётчики ---------- */
+.menu-hint {
+  padding: 6px 10px 8px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--fg-muted);
+  border-bottom: 1px solid var(--border-soft);
+  margin-bottom: 4px;
+}
+
+/* ---------- Адаптив ---------- */
+@media (max-width: 1024px) {
+  .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  .dash-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 640px) {
+  .kpi-grid { grid-template-columns: 1fr; }
+  .page-head { align-items: flex-start; flex-direction: column; }
+}

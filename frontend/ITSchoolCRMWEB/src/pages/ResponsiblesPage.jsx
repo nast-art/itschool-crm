@@ -16,6 +16,11 @@
 // 6. Модалка представителя: вуз, ФИО, должность, email, телефон,
 //    тумблер активности, комментарий.
 //
+// АДАПТИВНОСТЬ: у каждого <td> таблицы .responsibles-table есть
+// data-label с названием колонки — на мобильном (≤720px, см.
+// base.css) таблица превращается в карточки. У колонки действий
+// data-label нет — кнопки прижимаются к правому краю карточки.
+//
 // РОЛЕВАЯ МОДЕЛЬ (п. 11 ТЗ):
 // user — просмотр; manager — + изменение ответственных за вузы
 // (закрепление менеджеров) и управление представителями; admin — всё.
@@ -577,11 +582,11 @@ export default function ResponsiblesPage() {
               На вкладке менеджеров скрыта: здесь редактируется
               закрепление существующих. */}
           {canManage && tab === TABS.contacts && (
-  <button type="button" className="btn-accent-soft" onClick={openAdd}>
-    <IconPlus size={16} />
-    Добавить
-  </button>
-)}
+            <button type="button" className="btn-accent-soft" onClick={openAdd}>
+              <IconPlus size={16} />
+              Добавить
+            </button>
+          )}
         </div>
       </div>
 
@@ -685,14 +690,14 @@ export default function ResponsiblesPage() {
                 <tbody>
                   {pagedRows.map((row) => (
                     <tr key={row.id}>
-                      <td>
+                      <td data-label="ФИО">
                         <strong>{row.fullName || 'Без ФИО'}</strong>
                         {row.email && (
                           <div className="responsibles-secondary">{row.email}</div>
                         )}
                       </td>
-                      <td>{row.position || '—'}</td>
-                      <td>
+                      <td data-label="Должность">{row.position || '—'}</td>
+                      <td data-label="Вузы">
                         {tab === TABS.managers ? (
                           <span
                             title={(row.universities ?? [])
@@ -705,50 +710,50 @@ export default function ResponsiblesPage() {
                           row.universityName || '—'
                         )}
                       </td>
-                      <td>
+                      <td data-label="Статус">
                         <span className={statusClass(row.isActive)}>
                           {row.isActive ? 'Активно' : 'Неактивно'}
                         </span>
                       </td>
-                    {canManage && (
-  <td className="responsibles-actions-col">
-    <div className="responsibles-action-stack">
-      {tab === TABS.managers ? (
-        <button
-          type="button"
-          className="icon-action"
-          onClick={() => openManagerEdit(row)}
-          title="Изменить закреплённые вузы"
-          aria-label="Изменить закреплённые вузы"
-        >
-          <IconEdit size={16} />
-        </button>
-      ) : (
-        <>
-          <button
-            type="button"
-            className="icon-action"
-            onClick={() => openContactEdit(row)}
-            title="Изменить"
-            aria-label="Изменить"
-          >
-            <IconEdit size={16} />
-          </button>
-          <button
-            type="button"
-            className="icon-action responsibles-danger-action"
-            onClick={() => removeContact(row)}
-            title="Сделать неактивным"
-            aria-label="Удалить"
-            disabled={!row.isActive}
-          >
-            <IconTrash size={16} />
-          </button>
-        </>
-      )}
-    </div>
-  </td>
-)}
+                      {canManage && (
+                        <td className="responsibles-actions-col">
+                          <div className="responsibles-action-stack">
+                            {tab === TABS.managers ? (
+                              <button
+                                type="button"
+                                className="icon-action"
+                                onClick={() => openManagerEdit(row)}
+                                title="Изменить закреплённые вузы"
+                                aria-label="Изменить закреплённые вузы"
+                              >
+                                <IconEdit size={16} />
+                              </button>
+                            ) : (
+                              <>
+                                <button
+                                  type="button"
+                                  className="icon-action"
+                                  onClick={() => openContactEdit(row)}
+                                  title="Изменить"
+                                  aria-label="Изменить"
+                                >
+                                  <IconEdit size={16} />
+                                </button>
+                                <button
+                                  type="button"
+                                  className="icon-action responsibles-danger-action"
+                                  onClick={() => removeContact(row)}
+                                  title="Сделать неактивным"
+                                  aria-label="Удалить"
+                                  disabled={!row.isActive}
+                                >
+                                  <IconTrash size={16} />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>

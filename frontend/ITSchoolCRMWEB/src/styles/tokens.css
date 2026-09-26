@@ -1,0 +1,192 @@
+/* ============================================================
+   Дизайн-токены ДС Ростелеком (design.rt.ru, gen2), светлая тема
+   Структура повторяет палитру из дизайн-системы:
+   Fg · Bg · Bg elevated · Border · Accent · Neutral ·
+   Success · Warning · Error · Info · Status-01…06 · Static
+   Точные hex сверить: https://design.rt.ru/gen2/designsystem/foundation/colors
+   (значения ниже подобраны по скриншотам палитры)
+   ============================================================ */
+:root {
+  /* ---------- Fg (foreground) — типографика и иконки ---------- */
+  --fg-default: #1b1b1f;
+  --fg-soft: #45454d;
+  --fg-muted: #70707a;
+  --fg-disabled: #a6a6b0;
+  --fg-on-accent: #ffffff;
+
+  /* ---------- Bg (background) — заливка поверхностей ---------- */
+  --bg-page: #f7f7f9;
+  --bg-surface-1: #ffffff;
+  --bg-surface-2: #f2f2f5;
+  --bg-surface-3: #e9e9ee;
+
+  /* ---------- Bg elevated — «приподнятые» элементы ---------- */
+  --bg-elevated-1: #ffffff;
+  --bg-elevated-2: #fafafc;
+  --bg-elevated-3: #f4f4f7;
+
+  /* ---------- Border — обводки и разделители ---------- */
+  --border-default: #dcdce3;
+  --border-soft: #e8e8ee;
+  --border-strong: #c6c6cf;
+
+  /* ---------- Accent — цвет бренда и интерактивных элементов ---------- */
+  --accent-default: #ff4d14;
+  --accent-hover: #e63e0c;
+  --accent-active: #c23509;
+  --accent-soft: #ff6b3d;
+  --accent-light: #ffa285;
+  --accent-bg: #fff0e9;
+  --accent-bg-strong: #ffe0d3;
+  --accent-border: #ffc9b5;
+  --accent-focus-ring: rgba(255, 77, 20, 0.12);
+
+  /* ---------- Neutral — второстепенные элементы ---------- */
+  --neutral-default: #45454d;
+  --neutral-soft: #6e6e78;
+  --neutral-muted: #9c9ca6;
+  --neutral-bg: #f0f0f4;
+  --neutral-bg-strong: #e2e2e9;
+  --neutral-border: #d4d4dd;
+
+  /* ---------- Success — позитивные статусы ---------- */
+  --success-default: #22bf67;
+  --success-hover: #1da65a;
+  --success-active: #188a4c;
+  --success-soft: #4fd489;
+  --success-light: #a9e9c6;
+  --success-bg: #e7f9ef;
+  --success-bg-strong: #d0f3e0;
+  --success-border: #b2e8cb;
+
+  /* ---------- Warning — предупреждения ---------- */
+  --warning-default: #ffae1a;
+  --warning-hover: #e6970c;
+  --warning-active: #c67f06;
+  --warning-soft: #ffc350;
+  --warning-light: #ffe1a3;
+  --warning-bg: #fff6e0;
+  --warning-bg-strong: #ffedbe;
+  --warning-border: #ffe29a;
+
+  /* ---------- Error — ошибки ---------- */
+  --error-default: #f9392d;
+  --error-hover: #dd2419;
+  --error-active: #bc1c12;
+  --error-soft: #fb6a60;
+  --error-light: #fcaaa4;
+  --error-bg: #feecea;
+  --error-bg-strong: #fdd5d2;
+  --error-border: #fbbdb8;
+
+  /* ---------- Info — информирование ---------- */
+  --info-default: #2e7cf6;
+  --info-hover: #1d63d8;
+  --info-active: #184fab;
+  --info-soft: #6aa2f8;
+  --info-light: #aacbfa;
+  --info-bg: #e9f1fe;
+  --info-bg-strong: #d4e3fd;
+  --info-border: #bcd4fc;
+
+  /* ---------- Status-01…Status-06 — семантика статусов ---------- */
+  --status-01-default: #8b31ff;
+  --status-01-hover: #7517ee;
+  --status-01-active: #5f0fd4;
+  --status-01-soft: #a86bff;
+  --status-01-light: #cbaaff;
+  --status-01-bg: #f4e9ff;
+  --status-01-bg-strong: #e9d6ff;
+  --status-01-border: #dabfff;
+
+  --status-02-default: #5b7cfa;
+  --status-02-hover: #3f5fe8;
+  --status-02-active: #2f4ac4;
+  --status-02-soft: #88a0fb;
+  --status-02-light: #b7c5fc;
+  --status-02-bg: #ebf0fe;
+  --status-02-bg-strong: #d9e2fd;
+  --status-02-border: #c2d0fc;
+
+  --status-03-default: #2aa7f0;
+  --status-03-hover: #158ad2;
+  --status-03-active: #0f6fab;
+  --status-03-soft: #5cc0f4;
+  --status-03-light: #a3dcf8;
+  --status-03-bg: #e8f5fd;
+  --status-03-bg-strong: #d1ecfb;
+  --status-03-border: #b5e2f9;
+
+  --status-04-default: #26b8a8;
+  --status-04-hover: #1b9c8e;
+  --status-04-active: #148074;
+  --status-04-soft: #54ccbf;
+  --status-04-light: #9fe4dc;
+  --status-04-bg: #e6f6f4;
+  --status-04-bg-strong: #cdeeea;
+  --status-04-border: #b1e4df;
+
+  --status-05-default: #d73bd0;
+  --status-05-hover: #bb20b4;
+  --status-05-active: #9a1894;
+  --status-05-soft: #e473de;
+  --status-05-light: #f2abf0;
+  --status-05-bg: #fbe9fa;
+  --status-05-bg-strong: #f7d4f5;
+  --status-05-border: #f1bcf0;
+
+  --status-06-default: #f0447e;
+  --status-06-hover: #d62a65;
+  --status-06-active: #b31e53;
+  --status-06-soft: #f5739f;
+  --status-06-light: #faabc4;
+  --status-06-bg: #fde9f1;
+  --status-06-bg-strong: #fad3e2;
+  --status-06-border: #f7bcd2;
+
+  /* ---------- Static — одинаковы в светлой и тёмной теме ---------- */
+  --static-black: #101014;
+  --static-white: #ffffff;
+
+  /* ---------- Радиусы ---------- */
+  --radius-xs: 8px;
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --radius-xl: 32px;
+  --radius-pill: 999px;
+
+  /* ---------- Тени ---------- */
+  --shadow-card: 0 8px 30px rgba(16, 16, 20, 0.08);
+  --shadow-hover: 0 12px 40px rgba(255, 77, 20, 0.15);
+  --shadow-modal: 0 24px 64px rgba(16, 16, 20, 0.18);
+
+  /* ---------- Моушн-токены ДС Ростелеком ----------
+     https://design.rt.ru/gen2/designsystem/foundation/motion */
+  --motion-duration-2xs: 100ms;
+  --motion-duration-xs: 150ms;
+  --motion-duration-s: 200ms;
+  --motion-duration-m: 300ms;
+  --motion-duration-l: 600ms;
+  --motion-duration-xl: 1200ms;
+
+  /* Продуктивные изинги — функциональные анимации (состояния, переходы) */
+  --motion-easing-productive-standard: cubic-bezier(0.4, 0, 0.6, 1);
+  --motion-easing-productive-entrance: cubic-bezier(0, 0, 0.6, 1);
+  --motion-easing-productive-exit: cubic-bezier(0.3, 0, 1, 0.9);
+  --motion-easing-productive-bouncing: cubic-bezier(0.18, 0.89, 0.35, 1.15);
+
+  /* Экспрессивные изинги — появление/исчезновение крупных элементов */
+  --motion-easing-expressive-standard: cubic-bezier(0.8, 0, 0.2, 1);
+  --motion-easing-expressive-entrance: cubic-bezier(0, 0, 0.3, 1);
+  --motion-easing-expressive-exit: cubic-bezier(0.8, 0.15, 1, 1);
+  --motion-easing-expressive-bouncing: cubic-bezier(0.7, 0.3, 0.5, 1.25);
+
+  /* Алиасы для состояний элементов: короткие и сдержанные */
+  --transition-fast: all var(--motion-duration-xs) var(--motion-easing-productive-standard);
+  --transition-base: all var(--motion-duration-s) var(--motion-easing-productive-standard);
+  --transition-slow: all var(--motion-duration-m) var(--motion-easing-productive-standard);
+
+  font-family: 'Rostelecom Basis', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  color: var(--fg-default);
+}

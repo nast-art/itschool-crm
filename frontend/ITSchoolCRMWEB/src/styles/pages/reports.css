@@ -1,0 +1,193 @@
+/* ============================================================
+   Страница «Отчёты»: фильтры, выбор колонок, предпросмотр, экспорт
+   ============================================================ */
+
+/* Панель фильтров отчёта.
+   КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: auto-fill + minmax — поля сами переносятся
+   на следующую строку при нехватке ширины и НИКОГДА не сжимаются
+   меньше 190px (раньше 7 жёстких колонок наслаивались).
+   Кнопки «Применить/Сбросить» занимают свободную ячейку сетки
+   и тоже переносятся на новую строку вместе с полями. */
+.filters-grid--reports {
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  align-items: end;
+}
+
+/* Дата-пикеры не должны разъезжаться: запрещаем им сжиматься */
+.filters-grid--reports .filter-field {
+  min-width: 0;
+}
+
+.filters-grid--reports input[type='date'] {
+  min-width: 0;
+  width: 100%;
+}
+
+/* На узких экранах кнопки — во всю ширину строки */
+@media (max-width: 560px) {
+  .filters-grid--reports .filters-actions {
+    grid-column: 1 / -1;
+  }
+  .filters-grid--reports .filters-apply {
+    flex: 1;
+  }
+}
+
+/* ---------- Блок «Выбор колонок отчёта» ---------- */
+.panel-heading {
+  margin: 0 0 14px;
+  font-size: 16px;
+}
+
+/* Чекбоксы колонок — по макету: квадрат с галочкой при выборе.
+   Нативный чекбокс раскрашен через accent-color (--accent-default задан
+   в базовом .checkbox-field) */
+.report-columns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 22px;
+  padding: 2px;
+}
+
+.report-column {
+  font-size: 14px;
+  user-select: none;
+}
+
+.report-column input {
+  width: 18px;
+  height: 18px;
+}
+
+/* ---------- Таблица предпросмотра отчёта ---------- */
+/* Раскладка по содержимому: колонок может быть от 1 до 7,
+   ширины подстраиваются под выбранные колонки */
+.report-table {
+  width: 100%;
+  table-layout: auto;
+}
+
+.report-table th,
+.report-table td {
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  vertical-align: top;
+  font-size: 13px;
+  padding: 10px 12px;
+}
+
+.report-table th {
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+/* Первая колонка (наименование вуза) выделяется жирным —
+   как в таблице «Вузы» */
+.report-table td:first-child {
+  font-weight: 600;
+}
+
+/* Колонка «Статус» — гарантированная ширина, чтобы длинные
+   названия этапов занимали две строки, а не три-четыре */
+.report-table .report-col-status {
+  width: 230px;
+  min-width: 200px;
+}
+
+/* ---------- Бейдж статуса: компактная пилюля ---------- */
+.report-status-badge {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 6px;
+  max-width: 210px;                /* ← было 180px: +30px на текст */
+  padding: 2px 10px 3px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.35;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  vertical-align: middle;
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: normal;
+  text-align: left;
+}
+
+.report-status-badge::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 5px;
+  height: 5px;
+  margin-top: 4px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.report-status-badge.is-progress {
+  background: #f4efff;
+  border-color: #e5d9ff;
+  color: #6d28d9;
+}
+
+.report-status-badge.is-new {
+  background: #eff6ff;
+  border-color: #dbeafe;
+  color: #1d4ed8;
+}
+
+.report-status-badge.is-final {
+  background: #ecfdf3;
+  border-color: #d1f4de;
+  color: #067647;
+}
+
+/* ---------- Пояснение под заголовком предпросмотра:
+   экспорт идёт по всей выборке, пагинация — только для экрана ---------- */
+.report-export-note {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+
+/* ---------- Строка кнопок экспорта ---------- */
+.report-format-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.report-format-btn {
+  white-space: nowrap;
+}
+
+.report-format-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ---------- Пагинация предпросмотра: выбор размера страницы ---------- */
+.pager-size {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 8px;
+}
+
+.pager-size-select {
+  max-width: 90px;
+  height: 30px;
+  padding-top: 0;
+  padding-bottom: 0;
+  font-size: 13px;
+}
+
+/* На узком экране селект размера переносится под пейджер */
+@media (max-width: 720px) {
+  .pager-size {
+    margin-left: 0;
+    width: 100%;
+    justify-content: flex-end;
+  }
+}

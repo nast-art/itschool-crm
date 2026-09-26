@@ -13,20 +13,16 @@ public class LicensesController : ControllerBase
 {
     private readonly ILicenseService _service;
 
-    public LicensesController(
-        ILicenseService service)
+    public LicensesController(ILicenseService service)
     {
         _service = service;
     }
 
     [HttpGet]
     [Authorize(Policy = Policies.UserAccess)]
-    public async Task<ActionResult<List<LicenseDto>>> GetAll(
-        CancellationToken cancellationToken)
+    public async Task<ActionResult<List<LicenseDto>>> GetAll(CancellationToken cancellationToken)
     {
-        var licenses =
-            await _service.GetAllAsync(
-                cancellationToken);
+        var licenses = await _service.GetAllAsync(cancellationToken);
 
         return Ok(licenses);
     }

@@ -13,22 +13,16 @@ public class ReportsController : ControllerBase
 {
     private readonly IReportService _service;
 
-    public ReportsController(
-        IReportService service)
+    public ReportsController(IReportService service)
     {
         _service = service;
     }
 
     [HttpPost("xls")]
     [Authorize(Policy = Policies.UserAccess)]
-    public async Task<IActionResult> Xls(
-        [FromBody] ReportFilterDto filter,
-        CancellationToken cancellationToken)
+    public async Task<IActionResult> Xls([FromBody] ReportFilterDto filter, CancellationToken cancellationToken)
     {
-        var file =
-            await _service.GenerateXlsAsync(
-                filter,
-                cancellationToken);
+        var file = await _service.GenerateXlsAsync(filter, cancellationToken);
 
         return File(
             file,
@@ -38,14 +32,9 @@ public class ReportsController : ControllerBase
 
     [HttpPost("xlsx")]
     [Authorize(Policy = Policies.UserAccess)]
-    public async Task<IActionResult> Xlsx(
-        [FromBody] ReportFilterDto filter,
-        CancellationToken cancellationToken)
+    public async Task<IActionResult> Xlsx([FromBody] ReportFilterDto filter, CancellationToken cancellationToken)
     {
-        var file =
-            await _service.GenerateXlsxAsync(
-                filter,
-                cancellationToken);
+        var file = await _service.GenerateXlsxAsync(filter, cancellationToken);
 
         return File(
             file,
@@ -55,14 +44,9 @@ public class ReportsController : ControllerBase
 
     [HttpPost("pdf")]
     [Authorize(Policy = Policies.UserAccess)]
-    public async Task<IActionResult> Pdf(
-        [FromBody] ReportFilterDto filter,
-        CancellationToken cancellationToken)
+    public async Task<IActionResult> Pdf([FromBody] ReportFilterDto filter, CancellationToken cancellationToken)
     {
-        var file =
-            await _service.GeneratePdfAsync(
-                filter,
-                cancellationToken);
+        var file = await _service.GeneratePdfAsync(filter, cancellationToken);
 
         return File(
             file,
@@ -72,14 +56,9 @@ public class ReportsController : ControllerBase
 
     [HttpPost("json")]
     [Authorize(Policy = Policies.UserAccess)]
-    public async Task<IActionResult> Json(
-        [FromBody] ReportFilterDto filter,
-        CancellationToken cancellationToken)
+    public async Task<IActionResult> Json([FromBody] ReportFilterDto filter, CancellationToken cancellationToken)
     {
-        var file =
-            await _service.GenerateJsonAsync(
-                filter,
-                cancellationToken);
+        var file = await _service.GenerateJsonAsync(filter, cancellationToken);
 
         return File(
             file,
@@ -89,30 +68,18 @@ public class ReportsController : ControllerBase
 
     [HttpPost("statistics")]
     [Authorize(Policy = Policies.UserAccess)]
-    public async Task<ActionResult<StatisticsDto>>
-        Statistics(
-            [FromBody] ReportFilterDto filter,
-            CancellationToken cancellationToken)
+    public async Task<ActionResult<StatisticsDto>> Statistics([FromBody] ReportFilterDto filter, CancellationToken cancellationToken)
     {
-        var statistics =
-            await _service.GetStatisticsAsync(
-                filter,
-                cancellationToken);
+        var statistics = await _service.GetStatisticsAsync(filter, cancellationToken);
 
         return Ok(statistics);
     }
 
     [HttpPost("statistics/png")]
     [Authorize(Policy = Policies.UserAccess)]
-    public async Task<IActionResult> StatisticsPng(
-        [FromBody] ReportFilterDto filter,
-        CancellationToken cancellationToken)
+    public async Task<IActionResult> StatisticsPng([FromBody] ReportFilterDto filter, CancellationToken cancellationToken)
     {
-        var file =
-            await _service
-                .GenerateStatisticsPngAsync(
-                    filter,
-                    cancellationToken);
+        var file = await _service.GenerateStatisticsPngAsync(filter, cancellationToken);
 
         return File(
             file,
@@ -122,15 +89,9 @@ public class ReportsController : ControllerBase
 
     [HttpPost("statistics/pdf")]
     [Authorize(Policy = Policies.UserAccess)]
-    public async Task<IActionResult> StatisticsPdf(
-        [FromBody] ReportFilterDto filter,
-        CancellationToken cancellationToken)
+    public async Task<IActionResult> StatisticsPdf([FromBody] ReportFilterDto filter, CancellationToken cancellationToken)
     {
-        var file =
-            await _service
-                .GenerateStatisticsPdfAsync(
-                    filter,
-                    cancellationToken);
+        var file = await _service.GenerateStatisticsPdfAsync(filter, cancellationToken);
 
         return File(
             file,

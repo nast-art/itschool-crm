@@ -22,6 +22,11 @@
 //    права»; п. 4 «Требований к решению»: решение должно уметь
 //    формировать json).
 //
+// АДАПТИВНОСТЬ: колонки таблицы .report-table динамические, поэтому
+// data-label задаётся из заголовка колонки (column.label) прямо в map —
+// на мобильном (≤720px, см. base.css) таблица превращается в карточки
+// с подписями выбранных колонок.
+//
 // РОЛЕВАЯ МОДЕЛЬ (строго по п. 11 ТЗ):
 // user    — работа с данными + формирование отчётов (xls/xlsx/pdf);
 // manager — то же + изменение ответственных за вузы (страница «Вузы»);
@@ -677,7 +682,9 @@ export default function ReportsPage() {
           <>
             <div className="table-wrap">
               {/* Таблица предпросмотра строится строго по выбранным колонкам
-                  (как и итоговый файл отчёта) */}
+                  (как и итоговый файл отчёта).
+                  data-label={column.label} — подписи колонок для мобильных
+                  карточек (≤720px, см. base.css) */}
               <table className="report-table">
                 <thead>
                   <tr>
@@ -702,7 +709,11 @@ export default function ReportsPage() {
                           // чтобы пилюля занимала две строки, а не 3–4.
                           // Бейдж — span ВНУТРИ td (inline-flex на самой
                           // ячейке ломал layout таблицы).
-                          <td key={column.key} className="report-col-status">
+                          <td
+                            key={column.key}
+                            className="report-col-status"
+                            data-label={column.label}
+                          >
                             <span
                               className={`report-status-badge ${statusToneClass(row.status)}`}
                             >
@@ -710,7 +721,9 @@ export default function ReportsPage() {
                             </span>
                           </td>
                         ) : (
-                          <td key={column.key}>{row[column.key]}</td>
+                          <td key={column.key} data-label={column.label}>
+                            {row[column.key]}
+                          </td>
                         ),
                       )}
                     </tr>

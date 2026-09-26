@@ -7,188 +7,128 @@ using ITSchoolCRM.API.Integrations.Website.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-namespace ITSchoolCRM.API.Integrations.Controllers
+namespace ITSchoolCRM.API.Integrations.Controllers;
+
+/// <summary>
+/// Фасад интеграций для фронтенда CRM.
+/// Оборачивает вызовы к внешним системам (LMS и сайт),
+/// единообразно превращая IntegrationException в HTTP 502 с кодом ошибки.
+/// </summary>
+[ApiController]
+[Route("api/[controller]")]
+[Authorize]
+public class IntegrationsController : ControllerBase
 {
-    /// <summary>
-    /// Фасад интеграций для фронтенда CRM.
-    /// Оборачивает вызовы к внешним системам (LMS и сайт),
-    /// единообразно превращая IntegrationException в HTTP 502 с кодом ошибки.
-    /// </summary>
-    [ApiController]
-    [Route("api/[controller]")]
-    [Authorize]
-    public class IntegrationsController : ControllerBase
+    private readonly ILmsIntegrationService _lmsIntegrationService;
+    private readonly IWebsiteIntegrationService _websiteIntegrationService;
+
+    public IntegrationsController(ILmsIntegrationService lmsIntegrationService, IWebsiteIntegrationService websiteIntegrationService)
     {
-        private readonly ILmsIntegrationService _lmsIntegrationService;
+        _lmsIntegrationService = lmsIntegrationService;
+        _websiteIntegrationService = websiteIntegrationService;
+    }
 
-        private readonly IWebsiteIntegrationService _websiteIntegrationService;
+    // Контракт тела 502-ответа фронта: { code, message }.
+    // Один хелпер на всех — анонимный тип сериализуется в тот же JSON,
+    // что и раньше в каждом catch.
+    private ObjectResult IntegrationError(IntegrationException ex)
+    {
+        return StatusCode(
+            StatusCodes.Status502BadGateway,
+            new
+            {
+                code = ex.ErrorCode,
+                message = ex.Message
+            });
+    }
 
-        public IntegrationsController(
-            ILmsIntegrationService lmsIntegrationService,
-            IWebsiteIntegrationService websiteIntegrationService)
+    [HttpGet("lms/students")]
+    [Authorize(Policy = Policies.UserAccess)]
+    public async Task<ActionResult<List<LmsStudentDto>>> GetLmsStudents(CancellationToken cancellationToken)
+    {
+        try
         {
-            _lmsIntegrationService = lmsIntegrationService;
-            _websiteIntegrationService = websiteIntegrationService;
+            var students = await _lmsIntegrationService.GetStudentsAsync(cancellationToken);
+            return Ok(students);
         }
-
-        // ---------------------------------------------------------
-        // LMS
-        // ---------------------------------------------------------
-
-        [HttpGet("lms/students")]
-        [Authorize(Policy = Policies.UserAccess)]
-        public async Task<ActionResult<List<LmsStudentDto>>> GetLmsStudents(
-            CancellationToken cancellationToken)
+        catch (IntegrationException ex)
         {
-            try
-            {
-                var students =
-                    await _lmsIntegrationService.GetStudentsAsync(
-                        cancellationToken);
-
-                return Ok(students);
-            }
-            catch (IntegrationException ex)
-            {
-                return StatusCode(
-                    StatusCodes.Status502BadGateway,
-                    new
-                    {
-                        code = ex.ErrorCode,
-                        message = ex.Message
-                    });
-            }
+            return IntegrationError(ex);
         }
+    }
 
-        [HttpGet("lms/courses")]
-        [Authorize(Policy = Policies.UserAccess)]
-        public async Task<ActionResult<List<LmsCourseDto>>> GetLmsCourses(
-            CancellationToken cancellationToken)
+    [HttpGet("lms/courses")]
+    [Authorize(Policy = Policies.UserAccess)]
+    public async Task<ActionResult<List<LmsCourseDto>>> GetLmsCourses(CancellationToken cancellationToken)
+    {
+        try
         {
-            try
-            {
-                var courses =
-                    await _lmsIntegrationService.GetCoursesAsync(
-                        cancellationToken);
-
-                return Ok(courses);
-            }
-            catch (IntegrationException ex)
-            {
-                return StatusCode(
-                    StatusCodes.Status502BadGateway,
-                    new
-                    {
-                        code = ex.ErrorCode,
-                        message = ex.Message
-                    });
-            }
+            var courses = await _lmsIntegrationService.GetCoursesAsync(cancellationToken);
+            return Ok(courses);
         }
-
-        [HttpGet("lms/enrollments")]
-        [Authorize(Policy = Policies.UserAccess)]
-        public async Task<ActionResult<List<LmsEnrollmentDto>>> GetLmsEnrollments(
-            CancellationToken cancellationToken)
+        catch (IntegrationException ex)
         {
-            try
-            {
-                var enrollments =
-                    await _lmsIntegrationService.GetEnrollmentsAsync(
-                        cancellationToken);
-
-                return Ok(enrollments);
-            }
-            catch (IntegrationException ex)
-            {
-                return StatusCode(
-                    StatusCodes.Status502BadGateway,
-                    new
-                    {
-                        code = ex.ErrorCode,
-                        message = ex.Message
-                    });
-            }
+            return IntegrationError(ex);
         }
+    }
 
-        [HttpPost("lms/interactions")]
-        [Authorize(Policy = Policies.UserAccess)]
-        public async Task<IActionResult> PushInteractionToLms(
-            [FromBody] PushInteractionToLmsDto dto,
-            CancellationToken cancellationToken)
+    [HttpGet("lms/enrollments")]
+    [Authorize(Policy = Policies.UserAccess)]
+    public async Task<ActionResult<List<LmsEnrollmentDto>>> GetLmsEnrollments(CancellationToken cancellationToken)
+    {
+        try
         {
-            try
-            {
-                await _lmsIntegrationService.PushInteractionAsync(
-                    dto,
-                    cancellationToken);
-
-                return NoContent();
-            }
-            catch (IntegrationException ex)
-            {
-                return StatusCode(
-                    StatusCodes.Status502BadGateway,
-                    new
-                    {
-                        code = ex.ErrorCode,
-                        message = ex.Message
-                    });
-            }
+            var enrollments = await _lmsIntegrationService.GetEnrollmentsAsync(cancellationToken);
+            return Ok(enrollments);
         }
-
-        // ---------------------------------------------------------
-        // Website
-        // ---------------------------------------------------------
-
-        [HttpGet("website/applications")]
-        [Authorize(Policy = Policies.UserAccess)]
-        public async Task<ActionResult<List<WebsiteApplicationDto>>> GetWebsiteApplications(
-            CancellationToken cancellationToken)
+        catch (IntegrationException ex)
         {
-            try
-            {
-                var applications =
-                    await _websiteIntegrationService.GetApplicationsAsync(
-                        cancellationToken);
-
-                return Ok(applications);
-            }
-            catch (IntegrationException ex)
-            {
-                return StatusCode(
-                    StatusCodes.Status502BadGateway,
-                    new
-                    {
-                        code = ex.ErrorCode,
-                        message = ex.Message
-                    });
-            }
+            return IntegrationError(ex);
         }
+    }
 
-        [HttpPost("website/interactions")]
-        [Authorize(Policy = Policies.UserAccess)]
-        public async Task<IActionResult> PushInteractionToWebsite(
-            [FromBody] PushInteractionToWebsiteDto dto,
-            CancellationToken cancellationToken)
+    [HttpPost("lms/interactions")]
+    [Authorize(Policy = Policies.UserAccess)]
+    public async Task<IActionResult> PushInteractionToLms([FromBody] PushInteractionToLmsDto dto, CancellationToken cancellationToken)
+    {
+        try
         {
-            try
-            {
-                await _websiteIntegrationService.PushInteractionAsync(
-                    dto,
-                    cancellationToken);
+            await _lmsIntegrationService.PushInteractionAsync(dto, cancellationToken);
+            return NoContent();
+        }
+        catch (IntegrationException ex)
+        {
+            return IntegrationError(ex);
+        }
+    }
 
-                return NoContent();
-            }
-            catch (IntegrationException ex)
-            {
-                return StatusCode(
-                    StatusCodes.Status502BadGateway,
-                    new
-                    {
-                        code = ex.ErrorCode,
-                        message = ex.Message
-                    });
-            }
+    [HttpGet("website/applications")]
+    [Authorize(Policy = Policies.UserAccess)]
+    public async Task<ActionResult<List<WebsiteApplicationDto>>> GetWebsiteApplications(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var applications = await _websiteIntegrationService.GetApplicationsAsync(cancellationToken);
+            return Ok(applications);
+        }
+        catch (IntegrationException ex)
+        {
+            return IntegrationError(ex);
+        }
+    }
+
+    [HttpPost("website/interactions")]
+    [Authorize(Policy = Policies.UserAccess)]
+    public async Task<IActionResult> PushInteractionToWebsite([FromBody] PushInteractionToWebsiteDto dto, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _websiteIntegrationService.PushInteractionAsync(dto, cancellationToken);
+            return NoContent();
+        }
+        catch (IntegrationException ex)
+        {
+            return IntegrationError(ex);
         }
     }
 }

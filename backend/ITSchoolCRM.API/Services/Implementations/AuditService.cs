@@ -28,14 +28,10 @@ public class AuditService : IAuditService
         object? newData,
         CancellationToken cancellationToken)
     {
-        var userId =
-            await _context.users
-                .Where(x =>
-                    x.keycloak_user_id ==
-                    _currentUserService.KeycloakUserId)
-                .Select(x => (int?)x.users_id)
-                .FirstOrDefaultAsync(
-                    cancellationToken);
+        var userId = await _context.users
+            .Where(x => x.keycloak_user_id == _currentUserService.KeycloakUserId)
+            .Select(x => (int?)x.users_id)
+            .FirstOrDefaultAsync(cancellationToken);
 
         var auditLog = new audit_log
         {
@@ -43,22 +39,18 @@ public class AuditService : IAuditService
             action = action,
             entity_type = entityType,
             entity_id = entityId,
-
             old_data = oldData is null
                 ? null
                 : JsonSerializer.Serialize(oldData),
-
             new_data = newData is null
                 ? null
                 : JsonSerializer.Serialize(newData),
-
             created_at = DateTime.UtcNow
         };
 
         _context.audit_logs.Add(auditLog);
 
-        await _context.SaveChangesAsync(
-            cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<List<AuditLogDto>> GetByEntityAsync(
@@ -75,26 +67,17 @@ public class AuditService : IAuditService
             .Select(x => new AuditLogDto
             {
                 Id = x.audit_logs_id,
-
                 UserId = x.user_id,
-
-                // Колонки full_name нет: ФИО собирается из частей.
                 UserName = x.user == null
                     ? null
                     : x.user.middle_name == null
                         ? x.user.last_name + " " + x.user.first_name
                         : x.user.last_name + " " + x.user.first_name + " " + x.user.middle_name,
-
                 Action = x.action,
-
                 EntityType = x.entity_type,
-
                 EntityId = x.entity_id,
-
                 OldData = x.old_data,
-
                 NewData = x.new_data,
-
                 CreatedAt = x.created_at
             })
             .ToListAsync(cancellationToken);
@@ -109,26 +92,17 @@ public class AuditService : IAuditService
             .Select(x => new AuditLogDto
             {
                 Id = x.audit_logs_id,
-
                 UserId = x.user_id,
-
-                // Колонки full_name нет: ФИО собирается из частей.
                 UserName = x.user == null
                     ? null
                     : x.user.middle_name == null
                         ? x.user.last_name + " " + x.user.first_name
                         : x.user.last_name + " " + x.user.first_name + " " + x.user.middle_name,
-
                 Action = x.action,
-
                 EntityType = x.entity_type,
-
                 EntityId = x.entity_id,
-
                 OldData = x.old_data,
-
                 NewData = x.new_data,
-
                 CreatedAt = x.created_at
             })
             .ToListAsync(cancellationToken);

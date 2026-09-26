@@ -54,9 +54,7 @@ public class ImportService : IImportService
 
     public Dictionary<string, string> GetAvailableMappingFields()
     {
-        return new Dictionary<string, string>(
-            MappingFields,
-            StringComparer.OrdinalIgnoreCase);
+        return new Dictionary<string, string>(MappingFields, StringComparer.OrdinalIgnoreCase);
     }
 
     public async Task<ImportBatchDto> ImportExcelAsync(
@@ -79,15 +77,15 @@ public class ImportService : IImportService
 
         if (mapping is null || mapping.Mapping.Count == 0)
         {
-            throw new ArgumentException(
-                "Необходимо указать mapping полей.");
+            throw new ArgumentException("Необходимо указать mapping полей.");
         }
 
         ValidateMapping(mapping.Mapping);
 
-        var userId = await _accessService.GetCurrentDatabaseUserIdAsync(
-            cancellationToken);
+        var userId = await _accessService.GetCurrentDatabaseUserIdAsync(cancellationToken);
 
+        // Батч создаём ДО обработки файла: если импорт упадёт на первой же
+        // строке, запись о попытке всё равно останется в БД для разбора.
         var batch = new import_batch
         {
             file_name = Path.GetFileName(file.FileName),
@@ -102,10 +100,7 @@ public class ImportService : IImportService
 
         try
         {
-            var rows = await ReadExcelAsync(
-                file,
-                extension,
-                cancellationToken);
+            var rows = await ReadExcelAsync(file, extension, cancellationToken);
 
             var imported = 0;
 
@@ -118,10 +113,7 @@ public class ImportService : IImportService
                     continue;
                 }
 
-                await ImportExcelRowAsync(
-                    row,
-                    mapping.Mapping,
-                    cancellationToken);
+                await ImportExcelRowAsync(row, mapping.Mapping, cancellationToken);
 
                 imported++;
             }
@@ -150,6 +142,8 @@ public class ImportService : IImportService
         }
         catch (Exception ex)
         {
+            // Фиксируем провал в батче, но исключение пробрасываем дальше —
+            // контроллер обязан вернуть клиенту ошибку, а не молчаливый успех.
             batch.status = "Failed";
             batch.completed_at = DateTime.UtcNow;
             batch.error_message = ex.Message;
@@ -160,8 +154,7 @@ public class ImportService : IImportService
         }
     }
 
-    private void ValidateMapping(
-        Dictionary<string, string> mapping)
+    private void ValidateMapping(Dictionary<string, string> mapping)
     {
         foreach (var pair in mapping)
         {
@@ -182,9 +175,7 @@ public class ImportService : IImportService
 
         IWorkbook workbook;
 
-        if (extension.Equals(
-            ".xls",
-            StringComparison.OrdinalIgnoreCase))
+        if (extension.Equals(".xls", StringComparison.OrdinalIgnoreCase))
         {
             workbook = new HSSFWorkbook(input);
         }
@@ -197,16 +188,14 @@ public class ImportService : IImportService
 
         if (sheet is null)
         {
-            throw new InvalidOperationException(
-                "В Excel-файле отсутствует лист.");
+            throw new InvalidOperationException("В Excel-файле отсутствует лист.");
         }
 
         var headerRow = sheet.GetRow(sheet.FirstRowNum);
 
         if (headerRow is null)
         {
-            throw new InvalidOperationException(
-                "В Excel-файле отсутствует строка заголовков.");
+            throw new InvalidOperationException("В Excel-файле отсутствует строка заголовков.");
         }
 
         var headers = new List<string>();
@@ -218,10 +207,7 @@ public class ImportService : IImportService
 
         var result = new List<Dictionary<string, string?>>();
 
-        for (
-            var rowIndex = sheet.FirstRowNum + 1;
-            rowIndex <= sheet.LastRowNum;
-            rowIndex++)
+        for (var rowIndex = sheet.FirstRowNum + 1; rowIndex <= sheet.LastRowNum; rowIndex++)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -232,21 +218,16 @@ public class ImportService : IImportService
                 continue;
             }
 
-            var values = new Dictionary<string, string?>(
-                StringComparer.OrdinalIgnoreCase);
+            var values = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
 
-            for (
-                var columnIndex = 0;
-                columnIndex < headers.Count;
-                columnIndex++)
+            for (var columnIndex = 0; columnIndex < headers.Count; columnIndex++)
             {
                 if (string.IsNullOrWhiteSpace(headers[columnIndex]))
                 {
                     continue;
                 }
 
-                values[headers[columnIndex]] =
-                    GetCellValue(row.GetCell(columnIndex));
+                values[headers[columnIndex]] = GetCellValue(row.GetCell(columnIndex));
             }
 
             result.Add(values);
@@ -262,6 +243,8 @@ public class ImportService : IImportService
             return string.Empty;
         }
 
+        // NPOI не вычисляет формулы: берём кэшированное значение (cell.ToString()),
+        // пересчитывать в библиотеке нельзя — отсюда ограничение форматов импорта.
         if (cell.CellType == CellType.Formula)
         {
             return cell.ToString().Trim();
@@ -274,43 +257,35 @@ public class ImportService : IImportService
                 return cell.DateCellValue.ToString();
             }
 
-            return cell.NumericCellValue.ToString(
-                CultureInfo.InvariantCulture);
+            return cell.NumericCellValue.ToString(CultureInfo.InvariantCulture);
         }
 
         return cell.ToString().Trim();
     }
 
-    private static bool IsEmptyRow(
-        Dictionary<string, string?> row)
+    private static bool IsEmptyRow(Dictionary<string, string?> row)
     {
         return row.Values.All(string.IsNullOrWhiteSpace);
     }
 
+    /// <summary>
+    /// Импорт одной Excel-строки каталога. Принципиальное решение:
+    /// сущности, не найденные по имени (вуз, направление, продукт, контакт,
+    /// договор), создаются на лету — импорт готовит каталог «под ключ»,
+    /// а не требует предварительно заполненных справочников.
+    /// </summary>
     private async Task ImportExcelRowAsync(
         Dictionary<string, string?> row,
         Dictionary<string, string> mapping,
         CancellationToken cancellationToken)
     {
-        var universityName = GetMappedValue(
-            row,
-            mapping,
-            "UniversityName");
-
-        var directionName = GetMappedValue(
-            row,
-            mapping,
-            "DirectionName");
-
-        var productName = GetMappedValue(
-            row,
-            mapping,
-            "ProductName");
+        var universityName = GetMappedValue(row, mapping, "UniversityName");
+        var directionName = GetMappedValue(row, mapping, "DirectionName");
+        var productName = GetMappedValue(row, mapping, "ProductName");
 
         if (string.IsNullOrWhiteSpace(universityName))
         {
-            throw new InvalidOperationException(
-                "Для строки отсутствует название ВУЗа.");
+            throw new InvalidOperationException("Для строки отсутствует название ВУЗа.");
         }
 
         universityName = universityName.Trim();
@@ -380,14 +355,8 @@ public class ImportService : IImportService
                 product = new it_product
                 {
                     name = productName,
-                    vendor = GetMappedValue(
-                        row,
-                        mapping,
-                        "Vendor"),
-                    description = GetMappedValue(
-                        row,
-                        mapping,
-                        "Software"),
+                    vendor = GetMappedValue(row, mapping, "Vendor"),
+                    description = GetMappedValue(row, mapping, "Software"),
                     is_active = true,
                     created_at = DateTime.UtcNow
                 };
@@ -398,15 +367,8 @@ public class ImportService : IImportService
             }
             else
             {
-                var vendor = GetMappedValue(
-                    row,
-                    mapping,
-                    "Vendor");
-
-                var software = GetMappedValue(
-                    row,
-                    mapping,
-                    "Software");
+                var vendor = GetMappedValue(row, mapping, "Vendor");
+                var software = GetMappedValue(row, mapping, "Software");
 
                 if (!string.IsNullOrWhiteSpace(vendor))
                 {
@@ -422,17 +384,16 @@ public class ImportService : IImportService
             }
         }
 
-        var managerFullName = GetMappedValue(
-            row,
-            mapping,
-            "ManagerFullName");
+        var managerFullName = GetMappedValue(row, mapping, "ManagerFullName");
 
         user? manager = null;
 
         if (!string.IsNullOrWhiteSpace(managerFullName))
         {
             // Колонки full_name нет: сопоставляем «ФИО Менеджера» из Excel
-            // со сборкой частей ФИО (в памяти — менеджеров немного).
+            // со сборкой частей ФИО. Запросом это не выразить (конкатенация
+            // трёх nullable-колонок с разделителем), поэтому в памяти —
+            // менеджеров в системе немного, выборка допустима.
             var managers = await _context.users
                 .AsNoTracking()
                 .ToListAsync(cancellationToken);
@@ -450,10 +411,7 @@ public class ImportService : IImportService
                 .Equals(target, StringComparison.OrdinalIgnoreCase));
         }
 
-        var contactFullName = GetMappedValue(
-            row,
-            mapping,
-            "UniversityContactFullName");
+        var contactFullName = GetMappedValue(row, mapping, "UniversityContactFullName");
 
         university_contact? contact = null;
 
@@ -480,10 +438,7 @@ public class ImportService : IImportService
             }
         }
 
-        var contractNumber = GetMappedValue(
-            row,
-            mapping,
-            "ContractNumber");
+        var contractNumber = GetMappedValue(row, mapping, "ContractNumber");
 
         contract? contract = null;
 
@@ -505,44 +460,27 @@ public class ImportService : IImportService
                 _context.contracts.Add(contract);
             }
 
-            contract.status = GetMappedValue(
-                row,
-                mapping,
-                "TransferStatus");
-
-            contract.comment = GetMappedValue(
-                row,
-                mapping,
-                "Comment");
+            contract.status = GetMappedValue(row, mapping, "TransferStatus");
+            contract.comment = GetMappedValue(row, mapping, "Comment");
         }
 
-        var validUntilText = GetMappedValue(
-            row,
-            mapping,
-            "LicenseValidUntil");
-
-        var signedAtText = GetMappedValue(
-            row,
-            mapping,
-            "LicenseSignedAt");
+        var validUntilText = GetMappedValue(row, mapping, "LicenseValidUntil");
+        var signedAtText = GetMappedValue(row, mapping, "LicenseSignedAt");
 
         license? license = null;
 
         if (!string.IsNullOrWhiteSpace(validUntilText) ||
             !string.IsNullOrWhiteSpace(signedAtText))
         {
+            // Лицензия создаётся без привязки к договору/взаимодействию:
+            // связь восстанавливается на стороне взаимодействий (import JSON),
+            // здесь фиксируем только факт лицензии со сроками.
             license = new license
             {
                 signed_at = ParseDate(signedAtText),
                 valid_until = ParseDate(validUntilText),
-                transfer_status = GetMappedValue(
-                    row,
-                    mapping,
-                    "TransferStatus"),
-                comment = GetMappedValue(
-                    row,
-                    mapping,
-                    "Comment"),
+                transfer_status = GetMappedValue(row, mapping, "TransferStatus"),
+                comment = GetMappedValue(row, mapping, "Comment"),
                 created_at = DateTime.UtcNow
             };
 
@@ -626,9 +564,7 @@ public class ImportService : IImportService
     {
         var source = mapping.FirstOrDefault(
             x =>
-                x.Value.Equals(
-                    targetField,
-                    StringComparison.OrdinalIgnoreCase));
+                x.Value.Equals(targetField, StringComparison.OrdinalIgnoreCase));
 
         if (string.IsNullOrWhiteSpace(source.Key))
         {
@@ -640,9 +576,7 @@ public class ImportService : IImportService
             return null;
         }
 
-        return string.IsNullOrWhiteSpace(value)
-            ? null
-            : value.Trim();
+        return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     }
 
     private static DateTime? ParseDate(string? value)
@@ -652,26 +586,17 @@ public class ImportService : IImportService
             return null;
         }
 
-        if (DateTime.TryParse(
-            value,
-            CultureInfo.InvariantCulture,
-            DateTimeStyles.None,
-            out var result))
+        if (DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.None, out var result))
         {
             return result;
         }
 
-        if (DateTime.TryParse(
-            value,
-            new CultureInfo("ru-RU"),
-            DateTimeStyles.None,
-            out result))
+        if (DateTime.TryParse(value, new CultureInfo("ru-RU"), DateTimeStyles.None, out result))
         {
             return result;
         }
 
-        throw new InvalidOperationException(
-            $"Не удалось распознать дату: {value}");
+        throw new InvalidOperationException($"Не удалось распознать дату: {value}");
     }
 
     public async Task<ImportBatchDto> ImportJsonAsync(
@@ -680,23 +605,20 @@ public class ImportService : IImportService
     {
         if (file is null || file.Length == 0)
         {
-            throw new ArgumentException(
-                "JSON-файл не выбран.");
+            throw new ArgumentException("JSON-файл не выбран.");
         }
 
         var extension = Path.GetExtension(file.FileName);
 
-        if (!extension.Equals(
-            ".json",
-            StringComparison.OrdinalIgnoreCase))
+        if (!extension.Equals(".json", StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException(
                 "Для JSON-импорта разрешён только формат JSON.");
         }
 
-        var userId = await _accessService.GetCurrentDatabaseUserIdAsync(
-            cancellationToken);
+        var userId = await _accessService.GetCurrentDatabaseUserIdAsync(cancellationToken);
 
+        // Батч создаём ДО обработки — см. комментарий в ImportExcelAsync.
         var batch = new import_batch
         {
             file_name = Path.GetFileName(file.FileName),
@@ -715,10 +637,7 @@ public class ImportService : IImportService
 
             await using (var stream = file.OpenReadStream())
             {
-                using var reader = new StreamReader(
-                    stream,
-                    Encoding.UTF8,
-                    detectEncodingFromByteOrderMarks: true);
+                using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
 
                 json = await reader.ReadToEndAsync(cancellationToken);
             }
@@ -728,29 +647,23 @@ public class ImportService : IImportService
                 PropertyNameCaseInsensitive = true
             };
 
-            var request = JsonSerializer.Deserialize<JsonImportRequestDto>(
-                json,
-                options);
+            var request = JsonSerializer.Deserialize<JsonImportRequestDto>(json, options);
 
             if (request is null)
             {
-                throw new InvalidOperationException(
-                    "JSON не содержит корректных данных.");
+                throw new InvalidOperationException("JSON не содержит корректных данных.");
             }
 
             foreach (var item in request.Items)
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                await ImportJsonItemAsync(
-                    item,
-                    cancellationToken);
+                await ImportJsonItemAsync(item, cancellationToken);
             }
 
             batch.status = "Completed";
             batch.completed_at = DateTime.UtcNow;
-            batch.error_message =
-                $"Импортировано объектов: {request.Items.Count}.";
+            batch.error_message = $"Импортировано объектов: {request.Items.Count}.";
 
             await _context.SaveChangesAsync(cancellationToken);
 
@@ -772,6 +685,7 @@ public class ImportService : IImportService
         }
         catch (Exception ex)
         {
+            // Статус Failed фиксируем, исключение пробрасываем — как в Excel-импорте.
             batch.status = "Failed";
             batch.completed_at = DateTime.UtcNow;
             batch.error_message = ex.Message;
@@ -782,6 +696,11 @@ public class ImportService : IImportService
         }
     }
 
+    /// <summary>
+    /// Импорт одного JSON-объекта. Единый паттерн резолва ссылок на всех
+    /// справочниках: сначала ищем по Id, при промахе (или отсутствии Id) —
+    /// по имени, иначе null (обязательные связи валидируются отдельно).
+    /// </summary>
     private async Task ImportJsonItemAsync(
         JsonImportItemDto item,
         CancellationToken cancellationToken)
@@ -792,48 +711,37 @@ public class ImportService : IImportService
         {
             university = await _context.universities
                 .FirstOrDefaultAsync(
-                    x =>
-                        x.universities_id ==
-                        item.UniversityId.Value,
+                    x => x.universities_id == item.UniversityId.Value,
                     cancellationToken);
         }
 
-        if (university is null &&
-            !string.IsNullOrWhiteSpace(item.UniversityName))
+        if (university is null && !string.IsNullOrWhiteSpace(item.UniversityName))
         {
             university = await _context.universities
                 .FirstOrDefaultAsync(
                     x =>
                         x.name != null &&
-                        x.name.ToLower() ==
-                        item.UniversityName.Trim().ToLower(),
+                        x.name.ToLower() == item.UniversityName.Trim().ToLower(),
                     cancellationToken);
         }
 
         if (university is null)
         {
-            throw new InvalidOperationException(
-                "В JSON не найден ВУЗ.");
+            throw new InvalidOperationException("В JSON не найден ВУЗ.");
         }
 
-        var workflow = await ResolveWorkflowAsync(
-            item,
-            cancellationToken);
+        var workflow = await ResolveWorkflowAsync(item, cancellationToken);
 
-        var status = await ResolveStatusAsync(
-            item,
-            workflow.workflows_id,
-            cancellationToken);
+        var status = await ResolveStatusAsync(item, workflow.workflows_id, cancellationToken);
 
         if (item.InteractionId.HasValue)
         {
-            var existingInteraction =
-                await _context.interactions
-                    .FirstOrDefaultAsync(
-                        x =>
-                            x.interactions_id ==
-                            item.InteractionId.Value,
-                        cancellationToken);
+            // Режим обновления: InteractionId задан — меняем workflow/статус
+            // существующего взаимодействия, новое не создаём.
+            var existingInteraction = await _context.interactions
+                .FirstOrDefaultAsync(
+                    x => x.interactions_id == item.InteractionId.Value,
+                    cancellationToken);
 
             if (existingInteraction is null)
             {
@@ -841,17 +749,11 @@ public class ImportService : IImportService
                     $"Interaction {item.InteractionId.Value} не найден.");
             }
 
-            existingInteraction.workflow_id =
-                workflow.workflows_id;
+            existingInteraction.workflow_id = workflow.workflows_id;
+            existingInteraction.current_status_id = status.workflow_statuses_id;
+            existingInteraction.updated_at = DateTime.UtcNow;
 
-            existingInteraction.current_status_id =
-                status.workflow_statuses_id;
-
-            existingInteraction.updated_at =
-                DateTime.UtcNow;
-
-            await _context.SaveChangesAsync(
-                cancellationToken);
+            await _context.SaveChangesAsync(cancellationToken);
 
             await _auditService.WriteAsync(
                 "IMPORT_JSON_INTERACTION_UPDATE",
@@ -875,21 +777,17 @@ public class ImportService : IImportService
         {
             direction = await _context.it_directions
                 .FirstOrDefaultAsync(
-                    x =>
-                        x.it_directions_id ==
-                        item.DirectionId.Value,
+                    x => x.it_directions_id == item.DirectionId.Value,
                     cancellationToken);
         }
 
-        if (direction is null &&
-            !string.IsNullOrWhiteSpace(item.DirectionName))
+        if (direction is null && !string.IsNullOrWhiteSpace(item.DirectionName))
         {
             direction = await _context.it_directions
                 .FirstOrDefaultAsync(
                     x =>
                         x.name != null &&
-                        x.name.ToLower() ==
-                        item.DirectionName.Trim().ToLower(),
+                        x.name.ToLower() == item.DirectionName.Trim().ToLower(),
                     cancellationToken);
         }
 
@@ -899,21 +797,17 @@ public class ImportService : IImportService
         {
             program = await _context.it_programs
                 .FirstOrDefaultAsync(
-                    x =>
-                        x.it_programs_id ==
-                        item.ProgramId.Value,
+                    x => x.it_programs_id == item.ProgramId.Value,
                     cancellationToken);
         }
 
-        if (program is null &&
-            !string.IsNullOrWhiteSpace(item.ProgramName))
+        if (program is null && !string.IsNullOrWhiteSpace(item.ProgramName))
         {
             program = await _context.it_programs
                 .FirstOrDefaultAsync(
                     x =>
                         x.name != null &&
-                        x.name.ToLower() ==
-                        item.ProgramName.Trim().ToLower(),
+                        x.name.ToLower() == item.ProgramName.Trim().ToLower(),
                     cancellationToken);
         }
 
@@ -923,21 +817,17 @@ public class ImportService : IImportService
         {
             product = await _context.it_products
                 .FirstOrDefaultAsync(
-                    x =>
-                        x.it_products_id ==
-                        item.ProductId.Value,
+                    x => x.it_products_id == item.ProductId.Value,
                     cancellationToken);
         }
 
-        if (product is null &&
-            !string.IsNullOrWhiteSpace(item.ProductName))
+        if (product is null && !string.IsNullOrWhiteSpace(item.ProductName))
         {
             product = await _context.it_products
                 .FirstOrDefaultAsync(
                     x =>
                         x.name != null &&
-                        x.name.ToLower() ==
-                        item.ProductName.Trim().ToLower(),
+                        x.name.ToLower() == item.ProductName.Trim().ToLower(),
                     cancellationToken);
         }
 
@@ -947,14 +837,11 @@ public class ImportService : IImportService
         {
             manager = await _context.users
                 .FirstOrDefaultAsync(
-                    x =>
-                        x.users_id ==
-                        item.ManagerId.Value,
+                    x => x.users_id == item.ManagerId.Value,
                     cancellationToken);
         }
 
-        if (manager is null &&
-            !string.IsNullOrWhiteSpace(item.ManagerFullName))
+        if (manager is null && !string.IsNullOrWhiteSpace(item.ManagerFullName))
         {
             // Колонки full_name нет: сопоставляем строку со сборкой
             // частей ФИО (в памяти — менеджеров немного).
@@ -981,93 +868,54 @@ public class ImportService : IImportService
         {
             contact = await _context.university_contacts
                 .FirstOrDefaultAsync(
-                    x =>
-                        x.university_contacts_id ==
-                        item.UniversityContactId.Value,
+                    x => x.university_contacts_id == item.UniversityContactId.Value,
                     cancellationToken);
         }
 
-        if (contact is null &&
-            !string.IsNullOrWhiteSpace(
-                item.UniversityContactFullName))
+        if (contact is null && !string.IsNullOrWhiteSpace(item.UniversityContactFullName))
         {
             contact = await _context.university_contacts
                 .FirstOrDefaultAsync(
                     x =>
-                        x.university_id ==
-                        university.universities_id &&
+                        x.university_id == university.universities_id &&
                         x.full_name != null &&
-                        x.full_name.ToLower() ==
-                        item.UniversityContactFullName
-                            .Trim()
-                            .ToLower(),
+                        x.full_name.ToLower() == item.UniversityContactFullName.Trim().ToLower(),
                     cancellationToken);
         }
 
-        if (contact is null &&
-            !string.IsNullOrWhiteSpace(
-                item.UniversityContactFullName))
+        if (contact is null && !string.IsNullOrWhiteSpace(item.UniversityContactFullName))
         {
             contact = new university_contact
             {
-                university_id =
-                    university.universities_id,
-
-                full_name =
-                    item.UniversityContactFullName,
-
-                position =
-                    item.UniversityContactPosition,
-
-                email =
-                    item.UniversityContactEmail,
-
-                phone =
-                    item.UniversityContactPhone,
-
+                university_id = university.universities_id,
+                full_name = item.UniversityContactFullName,
+                position = item.UniversityContactPosition,
+                email = item.UniversityContactEmail,
+                phone = item.UniversityContactPhone,
                 is_active = true
             };
 
             _context.university_contacts.Add(contact);
 
-            await _context.SaveChangesAsync(
-                cancellationToken);
+            await _context.SaveChangesAsync(cancellationToken);
         }
 
         var interaction = new interaction
         {
-            university_id =
-                university.universities_id,
-
-            program_id =
-                program?.it_programs_id,
-
-            product_id =
-                product?.it_products_id,
-
-            manager_id =
-                manager?.users_id,
-
-            university_contact_id =
-                contact?.university_contacts_id,
-
-            workflow_id =
-                workflow.workflows_id,
-
-            current_status_id =
-                status.workflow_statuses_id,
-
-            created_at =
-                DateTime.UtcNow,
-
-            updated_at =
-                DateTime.UtcNow
+            university_id = university.universities_id,
+            program_id = program?.it_programs_id,
+            product_id = product?.it_products_id,
+            manager_id = manager?.users_id,
+            university_contact_id = contact?.university_contacts_id,
+            workflow_id = workflow.workflows_id,
+            current_status_id = status.workflow_statuses_id,
+            created_at = DateTime.UtcNow,
+            updated_at = DateTime.UtcNow
         };
 
         _context.interactions.Add(interaction);
 
-        await _context.SaveChangesAsync(
-            cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
 
         await _auditService.WriteAsync(
             "IMPORT_JSON_INTERACTION",
@@ -1097,33 +945,33 @@ public class ImportService : IImportService
         {
             workflow = await _context.workflows
                 .FirstOrDefaultAsync(
-                    x =>
-                        x.workflows_id ==
-                        item.WorkflowId.Value,
+                    x => x.workflows_id == item.WorkflowId.Value,
                     cancellationToken);
         }
 
-        if (workflow is null &&
-            !string.IsNullOrWhiteSpace(item.WorkflowName))
+        if (workflow is null && !string.IsNullOrWhiteSpace(item.WorkflowName))
         {
             workflow = await _context.workflows
                 .FirstOrDefaultAsync(
                     x =>
                         x.name != null &&
-                        x.name.ToLower() ==
-                        item.WorkflowName.Trim().ToLower(),
+                        x.name.ToLower() == item.WorkflowName.Trim().ToLower(),
                     cancellationToken);
         }
 
         if (workflow is null)
         {
-            throw new InvalidOperationException(
-                "Workflow не найден.");
+            throw new InvalidOperationException("Workflow не найден.");
         }
 
         return workflow;
     }
 
+    /// <summary>
+    /// Резолв статуса взаимодействия: по Id, затем по имени в рамках
+    /// workflow, при полном промахе — начальный статус workflow (is_initial):
+    /// для нового взаимодействия нужен валидный стартовый статус.
+    /// </summary>
     private async Task<workflow_status> ResolveStatusAsync(
         JsonImportItemDto item,
         int workflowId,
@@ -1136,24 +984,19 @@ public class ImportService : IImportService
             status = await _context.workflow_statuses
                 .FirstOrDefaultAsync(
                     x =>
-                        x.workflow_statuses_id ==
-                        item.StatusId.Value &&
-                        x.workflow_id ==
-                        workflowId,
+                        x.workflow_statuses_id == item.StatusId.Value &&
+                        x.workflow_id == workflowId,
                     cancellationToken);
         }
 
-        if (status is null &&
-            !string.IsNullOrWhiteSpace(item.StatusName))
+        if (status is null && !string.IsNullOrWhiteSpace(item.StatusName))
         {
             status = await _context.workflow_statuses
                 .FirstOrDefaultAsync(
                     x =>
-                        x.workflow_id ==
-                        workflowId &&
+                        x.workflow_id == workflowId &&
                         x.name != null &&
-                        x.name.ToLower() ==
-                        item.StatusName.Trim().ToLower(),
+                        x.name.ToLower() == item.StatusName.Trim().ToLower(),
                     cancellationToken);
         }
 
@@ -1162,23 +1005,20 @@ public class ImportService : IImportService
             status = await _context.workflow_statuses
                 .FirstOrDefaultAsync(
                     x =>
-                        x.workflow_id ==
-                        workflowId &&
+                        x.workflow_id == workflowId &&
                         x.is_initial == true,
                     cancellationToken);
         }
 
         if (status is null)
         {
-            throw new InvalidOperationException(
-                "Для workflow не найден статус.");
+            throw new InvalidOperationException("Для workflow не найден статус.");
         }
 
         return status;
     }
 
-    public async Task<List<ImportBatchDto>> GetBatchesAsync(
-        CancellationToken cancellationToken)
+    public async Task<List<ImportBatchDto>> GetBatchesAsync(CancellationToken cancellationToken)
     {
         return await _context.import_batches
             .AsNoTracking()
@@ -1196,9 +1036,7 @@ public class ImportService : IImportService
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<ImportBatchDto?> GetBatchByIdAsync(
-        int id,
-        CancellationToken cancellationToken)
+    public async Task<ImportBatchDto?> GetBatchByIdAsync(int id, CancellationToken cancellationToken)
     {
         return await _context.import_batches
             .AsNoTracking()
@@ -1216,8 +1054,7 @@ public class ImportService : IImportService
             .FirstOrDefaultAsync(cancellationToken);
     }
 
-    private static ImportBatchDto ToDto(
-        import_batch batch)
+    private static ImportBatchDto ToDto(import_batch batch)
     {
         return new ImportBatchDto
         {

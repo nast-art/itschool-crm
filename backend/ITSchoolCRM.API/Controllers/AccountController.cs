@@ -13,8 +13,7 @@ public class AccountController : ControllerBase
 {
     private readonly ICurrentUserService _currentUser;
 
-    public AccountController(
-        ICurrentUserService currentUser)
+    public AccountController(ICurrentUserService currentUser)
     {
         _currentUser = currentUser;
     }
@@ -24,17 +23,10 @@ public class AccountController : ControllerBase
     {
         return Ok(new
         {
-            keycloakUserId =
-                _currentUser.KeycloakUserId,
-
-            userName =
-                _currentUser.UserName,
-
-            email =
-                _currentUser.Email,
-
-            roles =
-                _currentUser.Roles
+            keycloakUserId = _currentUser.KeycloakUserId,
+            userName = _currentUser.UserName,
+            email = _currentUser.Email,
+            roles = _currentUser.Roles
         });
     }
 
@@ -44,8 +36,7 @@ public class AccountController : ControllerBase
     {
         return Ok(new
         {
-            message =
-                "У пользователя есть доступ к пользовательской части API."
+            message = "У пользователя есть доступ к пользовательской части API."
         });
     }
 
@@ -55,8 +46,7 @@ public class AccountController : ControllerBase
     {
         return Ok(new
         {
-            message =
-                "У пользователя есть права руководителя."
+            message = "У пользователя есть права руководителя."
         });
     }
 
@@ -66,8 +56,7 @@ public class AccountController : ControllerBase
     {
         return Ok(new
         {
-            message =
-                "У пользователя есть права администратора."
+            message = "У пользователя есть права администратора."
         });
     }
 }

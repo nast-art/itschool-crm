@@ -15,6 +15,10 @@
 // не допускается — любое изменение применяется немедленно ко всем
 // взаимодействиям этого workflow. Поэтому на странице — предупреждение.
 //
+// АДАПТИВНОСТЬ: у каждого <td> таблицы .wf-table есть data-label с
+// названием колонки — на мобильном (≤720px, см. base.css) таблица
+// превращается в карточки. У колонки действий data-label нет.
+//
 // Контракт с бэкендом (ITSchoolCRM.API):
 //   GET  /Workflows                          -> [{ id, name, description, isActive }]
 //   GET  /Workflows/{id}                     -> { id, name, statuses[], transitions[] }
@@ -364,12 +368,14 @@ export default function WorkflowsPage() {
               <tbody>
                 {statuses.map((s) => (
                   <tr key={s.id}>
-                    <td>
+                    <td data-label="Шаг">
                       <span className="wf-step-num">{s.sortOrder}</span>
                     </td>
-                    <td>{s.name}</td>
-                    <td className="wf-desc">{s.description || '—'}</td>
-                    <td>
+                    <td data-label="Название этапа">{s.name}</td>
+                    <td className="wf-desc" data-label="Описание">
+                      {s.description || '—'}
+                    </td>
+                    <td data-label="Тип">
                       {s.isInitial && (
                         <span className="status-badge tone-2">Стартовый</span>
                       )}

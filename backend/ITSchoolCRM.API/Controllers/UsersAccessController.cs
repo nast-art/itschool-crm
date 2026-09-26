@@ -356,8 +356,7 @@ namespace ITSchoolCRM.API.Controllers
             var composed = string.Join(' ', new[]
                 {
                     user.LastName, user.FirstName, user.MiddleName,
-                }.Where(p => !string.IsNullOrWhiteSpace(p)))
-                .Trim();
+                }.Where(p => !string.IsNullOrWhiteSpace(p))).Trim();
             return composed.Length > 0 ? composed
                 : user.UserName ?? user.Email ?? "Без имени";
         }

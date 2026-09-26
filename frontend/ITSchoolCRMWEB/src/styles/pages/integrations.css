@@ -1,0 +1,171 @@
+/* ============================================================
+   Страница «Интеграции API» (раздел «Система», только admin)
+   ============================================================ */
+
+/* Сетка карточек источников: две колонки как на макете */
+.integ-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 900px) {
+  .integ-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Карточка источника: LMS ИТ Школы РТК / Веб-сайт ИТ Школы РТК */
+.integ-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated-2);
+  transition: var(--transition-base);
+}
+
+.integ-card:hover {
+  border-color: var(--accent-border);
+  box-shadow: var(--shadow-card);
+}
+
+.integ-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.integ-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-bg);
+  color: var(--accent-default);
+  flex-shrink: 0;
+}
+
+.integ-card-title h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.integ-card-title p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--fg-muted);
+}
+
+/* Строки «Ссылка / Формат / Статус / Расписание» — по макету */
+.integ-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.integ-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;          /* на узком экране значение уходит на вторую строку, а не наслаивается */
+  row-gap: 4px;
+  gap: 16px;
+  font-size: 14px;
+}
+
+.integ-label {
+  color: var(--fg-muted);
+  flex-shrink: 0;
+}
+
+.integ-value {
+  color: var(--fg-default);
+  text-align: right;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Ссылка и формат — моноширинным начертанием (технические данные) */
+.integ-row code.integ-value {
+  font-family: 'Cascadia Code', 'JetBrains Mono', Consolas, monospace;
+  font-size: 12.5px;
+  color: var(--fg-soft);
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-xs);
+  padding: 3px 8px;
+  max-width: 65%;
+}
+
+/* Кнопки «Синхронизировать» и «Настроить» */
+.integ-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: auto;
+}
+
+.integ-actions .btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ---------- Форма входящей загрузки JSON ----------
+   Все три колонки стоят на одной линии: у полей и у кнопки
+   одинаковая структура «подпись + элемент», элементы —
+   одинаковой высоты (47px, как у остальных полей форм). */
+.integ-upload {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.2fr) minmax(200px, 1fr) auto;
+  gap: 14px;
+  align-items: end;
+}
+
+@media (max-width: 900px) {
+  .integ-upload {
+    grid-template-columns: 1fr;
+  }
+}
+
+.integ-upload-field {
+  min-width: 0;
+}
+
+/* Подпись-заглушка над кнопкой: повторяет высоту .field-label
+   (14px font-size + 6px gap из .field), чтобы кнопка встала
+   ровно на линию полей слева */
+.integ-upload-spacer {
+  display: block;
+  visibility: hidden;
+  line-height: 1.4;
+  margin-bottom: 6px;
+  white-space: pre;
+}
+
+.integ-upload-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.integ-upload-actions .btn-accent-soft {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
+  /* Высота кнопки = высоте полей (47px у select/input),
+     чтобы нижние кромки всех трёх колонок совпали */
+  height: 47px;
+  box-sizing: border-box;
+}

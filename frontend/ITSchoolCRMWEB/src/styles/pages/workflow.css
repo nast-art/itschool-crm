@@ -1,0 +1,42 @@
+/* ============================================================
+   Страница «Система → Workflow»: список этапов
+   ============================================================ */
+
+.wf-step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-bg);
+  color: var(--accent-hover);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.wf-table {
+  width: 100%;
+  table-layout: auto;
+}
+
+.wf-table th,
+.wf-table td {
+  vertical-align: middle;
+  font-size: 14px;
+  padding: 12px 14px;
+}
+
+.wf-table th:nth-child(1) { width: 72px; }
+.wf-table th:nth-child(4) { width: 130px; }
+.wf-table th:nth-child(5) { width: 72px; }
+
+.wf-table .wf-desc {
+  max-width: 420px;
+  color: var(--fg-soft);
+  word-break: break-word;
+}
+
+.wf-table td:nth-child(2) {
+  font-weight: 600;
+}
