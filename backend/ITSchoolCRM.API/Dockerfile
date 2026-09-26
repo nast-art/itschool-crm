@@ -1,5 +1,5 @@
 # ---------- Сборка ----------
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 # Сначала только csproj — слой кэшируется, пока не менялись зависимости
@@ -10,7 +10,7 @@ COPY . .
 RUN dotnet publish "ITSchoolCRM.API.csproj" -c Release -o /app/publish /p:UseAppHost=false
 
 # ---------- Запуск ----------
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
 
 # В образах .NET 8 приложение по умолчанию слушает порт 8080
