@@ -18,46 +18,25 @@ CRM-система контроля взаимодействия ИТ Школы
 | Отчёты | NPOI (xls/xlsx), QuestPDF (pdf), System.Text.Json (json) |
 | Нагрузочное тестирование | k6 (скрипты в `loadtest/`), коллекция Postman `jstest.json` для ручных прогонов |
 
-## Быстрый старт (инфраструктура через Docker)
+## Быстрый старт (полный контур в Docker)
 
-```bash
+\`\`\`bash
 git clone &lt;repo&gt; && cd it-school-crm
 
-# 1. Секреты: создайте .env в корне (образец — .env.example):
+# 1. Секреты: создайте .env в корне (образец — .env.example)
 cp .env.example .env
-#   впишите: пароль БД (DB_PASSWORD), secret Keycloak-админа
-#   (KEYCLOAK_ADMIN_CLIENT_SECRET) и ключи S3 (S3_ACCESS_KEY / S3_SECRET_KEY)
+#   впишите: DB_PASSWORD, KEYCLOAK_ADMIN_CLIENT_SECRET,
+#   S3_ACCESS_KEY / S3_SECRET_KEY
 
-# 2. Инфраструктура: PostgreSQL (5432), Keycloak (8080), KeyDB (6379)
-docker compose up -d
+# 2. Сборка и запуск всех сервисов (API, фронт, PostgreSQL, Keycloak, KeyDB)
+docker compose up -d --build
 
-# 3. База данных: создайте БД и накатите скрипты из db/
-psql -U postgres -h localhost -c "CREATE DATABASE it_school_crm_db;"
-psql -U postgres -h localhost -d it_school_crm_db -f db/crm-db.sql
+# 3. UI: http://localhost:5173, Swagger: http://localhost:5026/swagger
+\`\`\`
 
-# 4. Backend (локальная разработка — вне Docker)
-cd backend/ITSchoolCRM.API
-dotnet user-secrets set "Storage:S3:AccessKey" "&lt;ключ&gt;"
-dotnet user-secrets set "Storage:S3:SecretKey" "&lt;секрет&gt;"
-dotnet run
-# API: http://localhost:5026, Swagger: /swagger
-
-# 5. Frontend
-cd ../../frontend/ITSchoolCRMWEB
-echo "VITE_API_URL=http://localhost:5026/api" &gt; .env
-npm install && npm run dev
-# UI: http://localhost:5173
-```
-
-&gt; **Запуск всего контура в Docker** (API + фронт в контейнерах): в папках
-&gt; `backend/ITSchoolCRM.API/` и `frontend/ITSchoolCRMWEB/` должны лежать
-&gt; `Dockerfile` (многостадийные сборки), тогда вместо шагов 4–5 достаточно
-&gt; `docker compose up -d --build` — UI будет на `http://localhost:5173`.
-&gt; Для разработки удобнее запускать backend/frontend с хоста, как описано
-&gt; выше: горячая пересборка, отладка в IDE.
-
-Приложение доступно по адресу фронтенда; авторизация — через форму
-входа (Keycloak, за кадром).
+&gt; **Для разработки** удобнее поднимать только инфраструктуру
+&gt; (`docker compose up -d postgres keycloak keydb`) и запускать
+&gt; backend/frontend с хоста (шаги ниже) — горячая пересборка и отладка в IDE.
 
 ## Учётные записи (демо-контур)
 
