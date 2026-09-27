@@ -50,7 +50,7 @@ docker compose up -d --build
 | Обычный пользователь (менеджер) | ivanovgrigori@example.net | 123456789 | user |
 | Консоль Keycloak | admin | admin | — (управление realm) |
 
-Пользователи с ролями user/manager заводятся через регистрацию в интерфейсе
+Пользователи с ролями user заводятся через регистрацию в интерфейсе
 (роль `user` назначается автоматически; manager/admin — через консоль Keycloak:
 realm `itschool` → Users → Role mapping).
 
