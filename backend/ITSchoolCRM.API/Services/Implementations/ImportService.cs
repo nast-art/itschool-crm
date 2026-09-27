@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
+using ITSchoolCRM.API.Caching;                    // >>> ИЗМЕНЕНИЕ (кэш-инвалидация)
 using ITSchoolCRM.API.Data;
 using ITSchoolCRM.API.DTOs.Imports;
 using ITSchoolCRM.API.Models;
@@ -17,6 +18,7 @@ public class ImportService : IImportService
     private readonly CrmDbContext _context;
     private readonly IUserAccessService _accessService;
     private readonly IAuditService _auditService;
+    private readonly ICacheService _cache;        // >>> ИЗМЕНЕНИЕ
 
     private static readonly HashSet<string> AllowedExcelExtensions =
         new(StringComparer.OrdinalIgnoreCase)
@@ -45,11 +47,13 @@ public class ImportService : IImportService
     public ImportService(
         CrmDbContext context,
         IUserAccessService accessService,
-        IAuditService auditService)
+        IAuditService auditService,
+        ICacheService cache)                      // >>> ИЗМЕНЕНИЕ
     {
         _context = context;
         _accessService = accessService;
         _auditService = auditService;
+        _cache = cache;                           // >>> ИЗМЕНЕНИЕ
     }
 
     public Dictionary<string, string> GetAvailableMappingFields()
@@ -137,6 +141,18 @@ public class ImportService : IImportService
                     imported
                 },
                 cancellationToken);
+
+            // >>> ИЗМЕНЕНИЕ: инвалидация кэша.
+            // Импорт пишет напрямую в БД, минуя сервисы-владельцы кэша
+            // (InteractionService, ContractsService, LicensesService).
+            // Без сброса версий фронт после импорта получал бы
+            // закэшированные /Interactions, /Contracts и /Licenses без
+            // новых записей: строки вузов отображались (поля из DTO
+            // взаимодействия), а колонки «№ Договора», «Подписание
+            // лицензии», «Статус передачи», «Комментарий» были «—»
+            // (собираются через справочники по id).
+            await _cache.BumpVersionAsync(CacheKeys.CatalogVersion, cancellationToken);
+            await _cache.BumpVersionAsync(CacheKeys.InteractionVersionKey, cancellationToken);
 
             return ToDto(batch);
         }
@@ -473,7 +489,7 @@ public class ImportService : IImportService
             !string.IsNullOrWhiteSpace(signedAtText))
         {
             // Лицензия создаётся без привязки к договору/взаимодействию:
-            // связь восстанавливается на стороне взаимодействий (import JSON),
+            // связь восстанавливается на стороне взаимодействий,
             // здесь фиксируем только факт лицензии со сроками.
             license = new license
             {
@@ -487,6 +503,8 @@ public class ImportService : IImportService
             _context.licenses.Add(license);
         }
 
+        // Промежуточный SaveChanges: контакт/договор/лицензия должны
+        // получить id ДО создания взаимодействия, которое на них ссылается.
         await _context.SaveChangesAsync(cancellationToken);
 
         if (manager is not null)
@@ -551,6 +569,62 @@ public class ImportService : IImportService
                         program_id = program.it_programs_id,
                         product_id = product.it_products_id
                     });
+            }
+        }
+
+        // >>> ИЗМЕНЕНИЕ: создание взаимодействия.
+        // Таблица «Вузы» на фронте строится из GET /Interactions: без
+        // взаимодействия импортированный вуз есть в БД и в поиске, но
+        // строки в реестре не появляется. Создаём взаимодействие «как в
+        // UniversityService.CreateAsync»: первый активный workflow,
+        // начальный статус, ссылки на продукт/менеджера/контакт/договор/
+        // лицензию. Защита от повторного импорта: если взаимодействие
+        // для этого вуза уже есть — новое не создаём.
+        var interactionExists = await _context.interactions
+            .AnyAsync(
+                x => x.university_id == university.universities_id,
+                cancellationToken);
+
+        if (!interactionExists)
+        {
+            var workflow = await _context.workflows
+                .Where(w => w.is_active == true)
+                .OrderBy(w => w.workflows_id)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (workflow is not null)
+            {
+                var initialStatus = await _context.workflow_statuses
+                    .Where(s =>
+                        s.workflow_id == workflow.workflows_id &&
+                        s.is_initial == true)
+                    .OrderBy(s => s.sort_order)
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                var programId = direction is not null && product is not null
+                    ? await _context.it_programs
+                        .Where(p =>
+                            p.direction_id == direction.it_directions_id &&
+                            p.name != null &&
+                            p.name.ToLower() == product.name!.ToLower())
+                        .Select(p => (int?)p.it_programs_id)
+                        .FirstOrDefaultAsync(cancellationToken)
+                    : null;
+
+                _context.interactions.Add(new interaction
+                {
+                    university_id = university.universities_id,
+                    program_id = programId,
+                    product_id = product?.it_products_id,
+                    manager_id = manager?.users_id,
+                    university_contact_id = contact?.university_contacts_id,
+                    workflow_id = workflow.workflows_id,
+                    current_status_id = initialStatus?.workflow_statuses_id,
+                    contract_id = contract?.contracts_id,
+                    license_id = license?.licenses_id,
+                    created_at = DateTime.UtcNow,
+                    updated_at = DateTime.UtcNow
+                });
             }
         }
 
@@ -680,6 +754,11 @@ public class ImportService : IImportService
                     count = request.Items.Count
                 },
                 cancellationToken);
+
+            // >>> ИЗМЕНЕНИЕ: та же инвалидация кэша, что и в ImportExcelAsync —
+            // JSON-импорт тоже пишет взаимодействия напрямую в БД.
+            await _cache.BumpVersionAsync(CacheKeys.CatalogVersion, cancellationToken);
+            await _cache.BumpVersionAsync(CacheKeys.InteractionVersionKey, cancellationToken);
 
             return ToDto(batch);
         }

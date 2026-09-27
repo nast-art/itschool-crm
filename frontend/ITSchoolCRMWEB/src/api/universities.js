@@ -40,25 +40,55 @@ export async function getLicenses() {
   return response.json()
 }
 
-// Импорт каталога вузов: multipart с файлом .xls/.xlsx.
-// Маппинг полей файла — согласованный (требование 1 ТЗ):
-//   Название ВУЗа · Вендор · ПО · Номер договора · Подписание лицензии ·
-//   Срок действия лицензии (год) · Статус по передачи · ФИО Менеджера ·
-//   Ответственные от ВУЗа · Комментарий
+// Импорт каталога вузов: POST /api/Imports/excel (ImportsController).
+// multipart/form-data: file + mapping (строка с JSON ImportMappingDto).
+// Маппинг: «колонка Excel → английское имя поля» (ключи MappingFields
+// ImportService: UniversityName, ContractNumber и т.д.). Бэкенд проверяет
+// mapping.Value через MappingFields.ContainsKey — значениями должны быть
+// именно английские ключи, русские названия — это подписи для UI.
+const DEFAULT_IMPORT_MAPPING = {
+  'Название ВУЗа': 'UniversityName',
+  'ИТ-направление': 'DirectionName',
+  'ИТ-продукт': 'ProductName',
+  'Вендор': 'Vendor',
+  'ПО': 'Software',
+  'Номер договора': 'ContractNumber',
+  'Подписание лицензии': 'LicenseSignedAt',
+  'Срок действия лицензии': 'LicenseValidUntil',
+  'Статус по передачи': 'TransferStatus',
+  'ФИО Менеджера': 'ManagerFullName',
+  'Ответственные от ВУЗа': 'UniversityContactFullName',
+  'Комментарий': 'Comment',
+}
+
 export async function importUniversityCatalog(file) {
   const form = new FormData()
   form.append('file', file)
+  form.append('mapping', JSON.stringify({ Mapping: DEFAULT_IMPORT_MAPPING }))
 
   // Content-Type НЕ выставляем вручную — браузер сам поставит boundary
-  const response = await fetch(`${API_URL}/Universities/import`, {
+  const response = await fetch(`${API_URL}/Imports/excel`, {
     method: 'POST',
     headers: authHeaders(),
     body: form,
   })
 
   if (!response.ok) {
-    throw new Error(await parseError(response, 'Не удалось импортировать каталог'))
+    // Контроллер отдаёт BadRequest строкой, а не { message } — учтём оба варианта
+    let message = 'Не удалось импортировать каталог'
+    try {
+      const text = await response.text()
+      try {
+        const body = JSON.parse(text)
+        message = body?.message ?? body?.title ?? (typeof body === 'string' ? body : message)
+      } catch {
+        if (text) message = text
+      }
+    } catch {
+      // тело не читается — оставляем дефолт
+    }
+    throw new Error(message)
   }
 
-  return response.status === 204 ? null : response.json()
+  return response.json()
 }

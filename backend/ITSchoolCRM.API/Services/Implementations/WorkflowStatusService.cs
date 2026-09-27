@@ -142,12 +142,54 @@ public class WorkflowStatusService : IWorkflowStatusService
             }
         }
 
+        // ---------- Позиция вставки и сдвиг хвоста ----------
+        // Раньше sort_order писался как передано, и вставка «после
+        // шага 14» давала ДВА статуса с sort_order = 15 — порядок
+        // узлов на карте ломался. Теперь: все статусы workflow с
+        // sort_order >= позиции сдвигаются на +1, освобождая место.
+        // SortOrder не задан или < 1 — добавляем в конец цепочки.
+        var statuses = await _context.workflow_statuses
+            .Where(x => x.workflow_id == dto.WorkflowId.Value)
+            .ToListAsync(cancellationToken);
+
+        int position;
+
+        if (dto.SortOrder.HasValue && dto.SortOrder.Value >= 1)
+        {
+            position = dto.SortOrder.Value;
+
+            foreach (var s in statuses.Where(x => (x.sort_order ?? 0) >= position))
+            {
+                s.sort_order = (s.sort_order ?? 0) + 1;
+            }
+        }
+        else
+        {
+            position = statuses.Count == 0
+                ? 1
+                : statuses.Max(x => x.sort_order ?? 0) + 1;
+        }
+
+        // ---------- Единственность финального статуса ----------
+        // Новый финальный статус снимает флаг is_final со всех
+        // прежних. Это разрешает легальный сценарий «финальный после
+        // финального»: старый финальный становится предпоследним
+        // шагом, новый — точкой завершения. Без снятия флага в
+        // workflow оказалось бы два завершения.
+        if (dto.IsFinal == true)
+        {
+            foreach (var s in statuses.Where(x => x.is_final == true))
+            {
+                s.is_final = false;
+            }
+        }
+
         var status = new workflow_status
         {
             workflow_id = dto.WorkflowId,
             name = dto.Name.Trim(),
             description = dto.Description,
-            sort_order = dto.SortOrder ?? 0,
+            sort_order = position,
             is_initial = dto.IsInitial ?? false,
             is_final = dto.IsFinal ?? false
         };
@@ -158,6 +200,78 @@ public class WorkflowStatusService : IWorkflowStatusService
         workflow.updated_at = DateTime.UtcNow;
 
         await _context.SaveChangesAsync(cancellationToken);
+        // После этого у status есть workflow_statuses_id,
+        // а у сдвинутых статусов — обновлённые sort_order.
+
+        // ---------- Перестройка переходов ----------
+        // Два сценария вставки:
+        // 1) Между P и N (середина): переходы P→N переключаются
+        //    на P→S, добавляется S→N. Без этого новый этап был бы
+        //    виден на карте, но НЕДОСТИЖИМ: ChangeStatusAsync
+        //    проверяет workflow_transitions и отклонил бы перевод.
+        // 2) После P в конец (next нет — типично P был финальным):
+        //    если у P нет исходящих переходов, добавляем P→S.
+        //    Старый финальный этап тем самым перестаёт быть точкой
+        //    выхода — новый статус (с is_final = true) завершает
+        //    цепочку.
+        var prev = statuses.FirstOrDefault(x => (x.sort_order ?? 0) == position - 1);
+        var next = statuses.FirstOrDefault(x => (x.sort_order ?? 0) == position + 1);
+
+        if (prev is not null && next is not null)
+        {
+            var transitionsToRewire = await _context.workflow_transitions
+                .Where(
+                    t =>
+                        t.workflow_id == dto.WorkflowId.Value &&
+                        t.from_status_id == prev.workflow_statuses_id &&
+                        t.to_status_id == next.workflow_statuses_id)
+                .ToListAsync(cancellationToken);
+
+            if (transitionsToRewire.Count > 0)
+            {
+                foreach (var t in transitionsToRewire)
+                {
+                    t.to_status_id = status.workflow_statuses_id;
+                }
+
+                _context.workflow_transitions.Add(
+                    new workflow_transition
+                    {
+                        workflow_id = dto.WorkflowId.Value,
+                        from_status_id = status.workflow_statuses_id,
+                        to_status_id = next.workflow_statuses_id
+                    });
+
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+        }
+        else if (prev is not null && next is null)
+        {
+            // Вставка в конец цепочки. Соединяем prev→S только если
+            // у prev нет исходящих переходов — иначе либо цепочка
+            // разветвлённая (автосвязка исказит схему), либо этап
+            // уже куда-то ведёт, и переходы настраивает админ
+            // вручную через WorkflowTransitionService.
+            var prevHasOutgoing = await _context.workflow_transitions
+                .AnyAsync(
+                    t =>
+                        t.workflow_id == dto.WorkflowId.Value &&
+                        t.from_status_id == prev.workflow_statuses_id,
+                    cancellationToken);
+
+            if (!prevHasOutgoing)
+            {
+                _context.workflow_transitions.Add(
+                    new workflow_transition
+                    {
+                        workflow_id = dto.WorkflowId.Value,
+                        from_status_id = prev.workflow_statuses_id,
+                        to_status_id = status.workflow_statuses_id
+                    });
+
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+        }
 
         await _auditService.WriteAsync(
             "CREATE",

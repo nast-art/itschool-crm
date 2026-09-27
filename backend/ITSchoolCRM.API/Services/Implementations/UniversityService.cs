@@ -198,19 +198,128 @@ public class UniversityService : IUniversityService
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<UniversityDto> CreateAsync(CreateUniversityDto dto, CancellationToken cancellationToken)
+              public async Task<UniversityDto> CreateAsync(CreateUniversityDto dto, CancellationToken cancellationToken)
     {
+        // Название — обязательное поле (NOT NULL + unique в БД).
+        // Фронт валидирует, но защищаемся и здесь: иначе получим
+        // PostgresException, завёрнутый мидлварью в 500.
+        if (string.IsNullOrWhiteSpace(dto.Name))
+        {
+            throw new InvalidOperationException("Название вуза обязательно.");
+        }
+
+        var now = DateTime.UtcNow;
+
         var university = new university
         {
-            name = dto.Name,
+            name = dto.Name.Trim(),
             short_name = dto.ShortName,
             is_active = true,
-            created_at = DateTime.UtcNow
+            created_at = now
         };
 
         _context.universities.Add(university);
 
+        // Сначала сохраняем вуз — без этого у него нет id,
+        // и любые ссылки на него (контакт, взаимодействие) нарушили бы FK.
         await _context.SaveChangesAsync(cancellationToken);
+
+        // ---------- Договор ----------
+        // contracts — самостоятельная таблица: связь с взаимодействием
+        // обратная (interactions.contract_id). Поэтому договор создаём
+        // и сохраняем ДО взаимодействия, иначе некуда будет ссылаться.
+        contract? createdContract = null;
+        if (!string.IsNullOrWhiteSpace(dto.ContractNumber))
+        {
+            createdContract = new contract
+            {
+                contract_number = dto.ContractNumber.Trim(),
+                signed_at = dto.LicenseSignedAt,
+                comment = dto.Comment,
+                created_at = now
+            };
+            _context.contracts.Add(createdContract);
+        }
+
+        // ---------- Лицензия ----------
+        // Аналогично договору: interactions.license_id -> licenses.
+        // Создаём, если заполнена дата подписания ИЛИ срок действия.
+        // Год (2027) разворачиваем в дату: срок — до конца года.
+        license? createdLicense = null;
+        if (dto.LicenseSignedAt is not null || dto.LicenseValidYears is not null)
+        {
+            createdLicense = new license
+            {
+                signed_at = dto.LicenseSignedAt,
+                valid_until = dto.LicenseValidYears is not null
+                    ? new DateTime(dto.LicenseValidYears.Value, 12, 31, 0, 0, 0, DateTimeKind.Utc)
+                    : null,
+                transfer_status = dto.TransferStatus,
+                comment = dto.Comment,
+                created_at = now
+            };
+            _context.licenses.Add(createdLicense);
+        }
+
+        // ---------- Контактное лицо вуза ----------
+        // interactions ссылается на university_contacts (university_contact_id),
+        // а не хранит ФИО строкой. Контакт привязан к вузу.
+        university_contact? createdContact = null;
+        if (!string.IsNullOrWhiteSpace(dto.UniversityContactName))
+        {
+            createdContact = new university_contact
+            {
+                university_id = university.universities_id,
+                full_name = dto.UniversityContactName.Trim(),
+                is_active = true
+            };
+            _context.university_contacts.Add(createdContact);
+        }
+
+        // Один пакетный SaveChanges для договора + лицензии + контакта —
+        // после него у всех появятся id, которые нужны взаимодействию.
+        if (createdContract is not null || createdLicense is not null || createdContact is not null)
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        // ---------- Взаимодействие ----------
+        // Таблица «Вузы» строится из interactions (строка = взаимодействие
+        // + договор + лицензия + продукт). Без взаимодействия вуз был бы
+        // в БД, но не отображался бы в реестре — создаём его сразу.
+        var workflow = await _context.workflows
+            .Where(w => w.is_active == true)
+            .OrderBy(w => w.workflows_id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (workflow is not null)
+        {
+            var initialStatus = await _context.workflow_statuses
+                .Where(s =>
+                    s.workflow_id == workflow.workflows_id &&
+                    s.is_initial == true)
+                .OrderBy(s => s.sort_order)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            var interaction = new interaction
+            {
+                university_id = university.universities_id,
+                program_id = null,
+                product_id = dto.ProductId,
+                manager_id = dto.ManagerId,
+                university_contact_id = createdContact?.university_contacts_id,
+                workflow_id = workflow.workflows_id,
+                current_status_id = initialStatus?.workflow_statuses_id,
+                contract_id = createdContract?.contracts_id,
+                license_id = createdLicense?.licenses_id,
+                created_at = now,
+                updated_at = now
+            };
+
+            _context.interactions.Add(interaction);
+
+            await _context.SaveChangesAsync(cancellationToken);
+        }
 
         // Вуз появился в справочниках, списках взаимодействий и агрегатах
         // статистики. DTO собираем руками (а не через GetByIdAsync, чтобы

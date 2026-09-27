@@ -664,20 +664,31 @@ export default function InteractionsPage() {
     setStatusOpen(true)
   }
 
-  async function handleStatusSave(e) {
+   async function handleStatusSave(e) {
     e.preventDefault()
     if (!workflow) return
     if (!statusForm.name.trim()) {
       setStatusError('Введите название статуса.')
       return
     }
+
+    // Контракт: POST /api/WorkflowStatuses, тело CreateWorkflowStatusDto.
+    // Позиция передаётся явным sortOrder: после выбранного этапа —
+    // его sortOrder + 1, «в конец» — null (бэкенд сам поставит max+1).
+    const after = statusForm.afterStatusId
+      ? statuses.find((s) => s.id === Number(statusForm.afterStatusId))
+      : null
+    const sortOrder = after ? (after.sortOrder ?? 0) + 1 : null
+
     setStatusPending(true)
     setStatusError('')
     try {
-      await api.post(`/Workflows/${workflow.id}/statuses`, {
+      await api.post('/WorkflowStatuses', {
+        workflowId: workflow.id,
         name: statusForm.name.trim(),
         description: statusForm.description.trim() || null,
-        insertAfterStatusId: statusForm.afterStatusId ? Number(statusForm.afterStatusId) : null,
+        sortOrder,
+        isInitial: false,
         isFinal: statusForm.isFinal,
       })
       setStatusOpen(false)
@@ -1200,7 +1211,7 @@ export default function InteractionsPage() {
         </div>
       )}
 
-      {statusOpen && (
+           {statusOpen && (
         <div className="modal-overlay" onClick={() => setStatusOpen(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h2>Добавить статус в workflow</h2>
@@ -1231,12 +1242,26 @@ export default function InteractionsPage() {
                 <span className="field-label">Вставить после этапа</span>
                 <select
                   value={statusForm.afterStatusId}
-                  onChange={(e) => setStatusForm((f) => ({ ...f, afterStatusId: e.target.value }))}
+                  onChange={(e) => {
+                    const afterId = e.target.value
+                    const after = afterId
+                      ? statuses.find((s) => s.id === Number(afterId))
+                      : null
+                    setStatusForm((f) => ({
+                      ...f,
+                      afterStatusId: afterId,
+                      // Вставка после финального означает, что новый этап
+                      // и есть новое завершение цепочки — флаг ставим
+                      // принудительно, иначе в workflow не останется
+                      // финального статуса.
+                      isFinal: after?.isFinal ? true : f.isFinal,
+                    }))
+                  }}
                 >
                   <option value="">В конец</option>
                   {statuses.map((s) => (
                     <option key={s.id} value={String(s.id)}>
-                      Шаг {s.sortOrder} «{s.name}»
+                      Шаг {s.sortOrder} «{s.name}»{s.isFinal ? ' (финальный)' : ''}
                     </option>
                   ))}
                 </select>
@@ -1245,6 +1270,12 @@ export default function InteractionsPage() {
                 <input
                   type="checkbox"
                   checked={statusForm.isFinal}
+                  disabled={
+                    statusForm.isFinal &&
+                    statuses.some(
+                      (s) => s.id === Number(statusForm.afterStatusId) && s.isFinal,
+                    )
+                  }
                   onChange={(e) => setStatusForm((f) => ({ ...f, isFinal: e.target.checked }))}
                 />
                 Финальный статус (завершение взаимодействия)

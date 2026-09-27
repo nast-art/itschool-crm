@@ -13,4 +13,8 @@ public class UpdateInteractionDto
     public int? ManagerId { get; set; }
 
     public int? UniversityContactId { get; set; }
+
+        public int? ContractId { get; set; }
+
+    public int? LicenseId { get; set; }
 }

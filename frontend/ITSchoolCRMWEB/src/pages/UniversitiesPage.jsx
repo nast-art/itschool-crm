@@ -203,11 +203,30 @@ export default function UniversitiesPage() {
       .finally(() => setLoading(false))
   }, [])
 
-  function reloadInteractions() {
-    return api
-      .get('/Interactions')
-      .then((list) => setInteractions(list ?? []))
-      .catch((err) => setPageError(err.message))
+  // Перезагрузка данных таблицы после добавления/импорта/назначения.
+  // Взаимодействия, договоры и лицензии грузим ВМЕСТЕ: строка таблицы
+  // собирается из всех трёх справочников (строка = взаимодействие +
+  // договор + лицензия + продукт). Перезагрузка только взаимодействий
+  // дала бы «—» в колонках «№ Договора», «Подписание лицензии» и т.д.
+  // до перезагрузки всей страницы.
+  function reloadAll() {
+    return Promise.all([
+      api
+        .get('/Interactions')
+        .then((list) => setInteractions(list ?? []))
+        .catch((err) => setPageError(err.message)),
+      getContracts()
+        .then((list) => setContracts(list ?? []))
+        .catch(() => {
+          // Эндпоинт недоступен — оставляем текущий справочник как есть,
+          // таблица покажет «—» в соответствующих колонках
+        }),
+      getLicenses()
+        .then((list) => setLicenses(list ?? []))
+        .catch(() => {
+          // Аналогично договорам
+        }),
+    ])
   }
 
   // ---------- Глубокая ссылка из поиска: ?university={id} ----------
@@ -347,7 +366,7 @@ export default function UniversitiesPage() {
     setPageError('')
     try {
       await importUniversityCatalog(file)
-      await reloadInteractions()
+      await reloadAll()
     } catch (err) {
       setPageError(err.message)
     } finally {
@@ -377,30 +396,53 @@ export default function UniversitiesPage() {
 
   async function handleAddSave(e) {
     e.preventDefault()
-    if (!addForm.name.trim()) {
+
+    const name = addForm.name.trim()
+
+    // Название обязательно (бэкенд: NOT NULL + unique universities_name_key)
+    if (!name) {
       setAddError('Введите название вуза.')
       return
     }
+
+    // Превентивная проверка на дубликат по справочнику, уже загруженному
+    // на страницу. Без неё бэкенд вернул бы 500 (unique constraint
+    // universities_name_key) с непонятным текстом. От гонки двух
+    // менеджеров, добавляющих одновременно, защищается всё равно бэк.
+    const duplicate = universities.some(
+      (u) => (u.name ?? '').trim().toLowerCase() === name.toLowerCase(),
+    )
+    if (duplicate) {
+      setAddError('Вуз с таким названием уже существует в каталоге.')
+      return
+    }
+
     setAddPending(true)
     setAddError('')
     try {
-      // Поля повторяют согласованный маппинг из требования 1 ТЗ
+      // Поля повторяют согласованный маппинг из требования 1 ТЗ.
+      // Пустые строки уходят как null — бэкенд не должен создавать
+      // пустые договоры/лицензии/контакты. Поле vendor не отправляем:
+      // в таблице «Вендор» берётся из продукта (product.vendor).
       await api.post('/Universities', {
-        name: addForm.name.trim(),
-        vendor: addForm.vendor.trim() || null,
+        name,
+        shortName: null,
         productId: addForm.productId ? Number(addForm.productId) : null,
+        managerId: addForm.managerId ? Number(addForm.managerId) : null,
         contractNumber: addForm.contractNumber.trim() || null,
+        // type="date" даёт строку yyyy-MM-dd — бэкенд парсит в DateTime?
         licenseSignedAt: addForm.licenseSignedAt || null,
         licenseValidYears: addForm.licenseValidYears
           ? Number(addForm.licenseValidYears)
           : null,
         transferStatus: addForm.transferStatus || null,
-        managerId: addForm.managerId ? Number(addForm.managerId) : null,
         universityContactName: addForm.universityContactName.trim() || null,
         comment: addForm.comment.trim() || null,
       })
       setAddOpen(false)
-      await reloadInteractions()
+      // Перезагружаем взаимодействия + договоры + лицензии вместе,
+      // иначе новая строка показала бы «—» в колонках договора/лицензии
+      await reloadAll()
     } catch (err) {
       setAddError(err.message)
     } finally {
@@ -408,7 +450,7 @@ export default function UniversitiesPage() {
     }
   }
 
-  // ---------- Назначение менеджера (п. 11 ТЗ: руководитель) ----------
+    // ---------- Назначение менеджера (п. 11 ТЗ: руководитель) ----------
 
   function openAssign(row) {
     setAssignRow(row)
@@ -419,19 +461,29 @@ export default function UniversitiesPage() {
   async function handleAssignSave(e) {
     e.preventDefault()
     if (!assignRow) return
+    const i = assignRow.interaction
     setAssignPending(true)
     setAssignError('')
     try {
-      // Используем существующий эндпоинт редактирования взаимодействия:
-      // меняем только менеджера, остальные поля передаём текущие
-      await api.put(`/Interactions/${assignRow.interaction.id}`, {
-        universityId: assignRow.interaction.universityId,
-        programId: assignRow.interaction.programId,
-        productId: assignRow.interaction.productId ?? null,
+      // ВАЖНО: PUT /Interactions/{id} обновляет взаимодействие ЦЕЛИКОМ —
+      // поля, не переданные в теле, бэкенд обнулит. Поэтому отправляем
+      // обратно ВСЕ id текущей строки. Иначе universityContactId
+      // обнулялся, и колонка «Ответственные» пропадала из таблицы после
+      // любого переназначения менеджера (та же опасность грозила
+      // contract_id и license_id — пропали бы № договора и лицензия).
+      await api.put(`/Interactions/${i.id}`, {
+        universityId: i.universityId,
+        programId: i.programId ?? null,
+        productId: i.productId ?? null,
         managerId: assignManagerId ? Number(assignManagerId) : null,
+        universityContactId: i.universityContactId ?? null,
+        contractId: i.contractId ?? null,
+        licenseId: i.licenseId ?? null,
       })
       setAssignRow(null)
-      await reloadInteractions()
+      // Перезагружаем взаимодействия + договоры + лицензии вместе:
+      // строка таблицы собирается из всех справочников
+      await reloadAll()
     } catch (err) {
       setAssignError(err.message)
     } finally {
@@ -714,18 +766,33 @@ export default function UniversitiesPage() {
               <div className="field-row">
                 <label className="field">
                   <span className="field-label">Вендор</span>
+                  {/* Вендор — атрибут продукта (it_products.vendor), в таблице
+                      берётся из product.vendor. Поле только для чтения:
+                      подтягивается автоматически при выборе ПО ниже. */}
                   <input
                     type="text"
                     value={addForm.vendor}
-                    onChange={(e) => setAddForm((f) => ({ ...f, vendor: e.target.value }))}
-                    placeholder="Ростелеком"
+                    placeholder="Выберите ПО — вендор подтянется автоматически"
+                    readOnly
                   />
                 </label>
                 <label className="field">
                   <span className="field-label">ПО (продукт)</span>
                   <select
                     value={addForm.productId}
-                    onChange={(e) => setAddForm((f) => ({ ...f, productId: e.target.value }))}
+                    onChange={(e) => {
+                      const productId = e.target.value
+                      const product = products.find(
+                        (p) => String(p.id) === productId,
+                      )
+                      setAddForm((f) => ({
+                        ...f,
+                        productId,
+                        // Вендор подтягиваем из выбранного продукта,
+                        // чтобы колонка «Вендор» таблицы совпадала с ПО
+                        vendor: product?.vendor ?? '',
+                      }))
+                    }}
                   >
                     <option value="">Не выбрано</option>
                     {productOptions.map((o) => (

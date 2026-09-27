@@ -576,7 +576,7 @@ public class InteractionService : IInteractionService
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<InteractionDto?> UpdateAsync(
+       public async Task<InteractionDto?> UpdateAsync(
         int id,
         UpdateInteractionDto dto,
         CancellationToken cancellationToken)
@@ -623,7 +623,9 @@ public class InteractionService : IInteractionService
             interaction.program_id,
             interaction.product_id,
             interaction.manager_id,
-            interaction.university_contact_id
+            interaction.university_contact_id,
+            interaction.contract_id,
+            interaction.license_id
         };
 
         if (dto.ProgramId.HasValue)
@@ -693,6 +695,12 @@ public class InteractionService : IInteractionService
         interaction.product_id = dto.ProductId;
         interaction.manager_id = dto.ManagerId;
         interaction.university_contact_id = dto.UniversityContactId;
+        // Договор и лицензия: без этих присвоений любой вызов метода
+        // (в т.ч. «Назначить менеджера» со страницы «Вузы») обнулял бы
+        // ссылки — из таблицы пропадали бы «№ Договора», даты лицензии,
+        // статус передачи и комментарий.
+        interaction.contract_id = dto.ContractId;
+        interaction.license_id = dto.LicenseId;
         interaction.updated_at = DateTime.UtcNow;
 
         await _context.SaveChangesAsync(cancellationToken);
@@ -708,7 +716,9 @@ public class InteractionService : IInteractionService
                 interaction.program_id,
                 interaction.product_id,
                 interaction.manager_id,
-                interaction.university_contact_id
+                interaction.university_contact_id,
+                interaction.contract_id,
+                interaction.license_id
             },
             cancellationToken);
 

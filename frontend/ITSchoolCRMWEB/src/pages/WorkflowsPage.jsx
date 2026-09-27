@@ -20,12 +20,12 @@
 // превращается в карточки. У колонки действий data-label нет.
 //
 // Контракт с бэкендом (ITSchoolCRM.API):
-//   GET  /Workflows                          -> [{ id, name, description, isActive }]
-//   GET  /Workflows/{id}                     -> { id, name, statuses[], transitions[] }
-//   POST /Workflows                          { name, description }
-//   PUT  /Workflows/{id}                     { name, description }
-//   POST /Workflows/{id}/statuses            { name, description, insertAfterStatusId, isFinal }
-//   PUT  /Workflows/{id}/statuses/{statusId} { name, description }
+//   GET  /Workflows                       -> [{ id, name, description, isActive }]
+//   GET  /Workflows/{id}                  -> { id, name, statuses[], transitions[] }
+//   POST /Workflows                       { name, description }
+//   PUT  /Workflows/{id}                  { name, description }
+//   POST /WorkflowStatuses                { workflowId, name, description, sortOrder, isInitial, isFinal }
+//   PUT  /WorkflowStatuses/{statusId}     { name, description }
 
 import { useEffect, useMemo, useState } from 'react'
 import { api } from '../api/client'
@@ -149,11 +149,15 @@ export default function WorkflowsPage() {
         name: createForm.name.trim(),
         description: createForm.description.trim() || null,
       })
-      // 2. Сразу добавляем стартовый этап (workflow без этапов нерабочий)
-      await api.post(`/Workflows/${created.id}/statuses`, {
+      // 2. Стартовый этап — через WorkflowStatusesController:
+      //    POST /api/WorkflowStatuses, тело CreateWorkflowStatusDto
+      //    { WorkflowId, Name, Description, SortOrder, IsInitial, IsFinal }.
+      await api.post('/WorkflowStatuses', {
+        workflowId: created.id,
         name: createForm.firstStatusName.trim(),
         description: 'Стартовый этап',
-        insertAfterStatusId: null,
+        sortOrder: null, // первый этап — бэкенд поставит позицию 1
+        isInitial: true,
         isFinal: false,
       })
       setCreateOpen(false)
@@ -161,6 +165,9 @@ export default function WorkflowsPage() {
       await loadDetail(created.id)
       flashNotice(`Workflow «${created.name}» создан. Добавьте остальные этапы.`)
     } catch (err) {
+      // Если workflow создался, а этап не добавился — в списке осталась
+      // «пустышка» без этапов. Её можно удалить (DELETE /Workflows/{id})
+      // или дозаполнить через «Добавить этап».
       setFormError(err.message)
     } finally {
       setPending(false)
@@ -219,15 +226,24 @@ export default function WorkflowsPage() {
       setFormError('Введите название этапа.')
       return
     }
+
+    // Позиция передаётся явным sortOrder: после выбранного этапа —
+    // его sortOrder + 1; «в конец» — null (бэкенд поставит max+1,
+    // сдвинет хвост и перестроит переходы — см. WorkflowStatusService).
+    const after = addStatusForm.afterStatusId
+      ? statuses.find((s) => s.id === Number(addStatusForm.afterStatusId))
+      : null
+    const sortOrder = after ? (after.sortOrder ?? 0) + 1 : null
+
     setPending(true)
     setFormError('')
     try {
-      await api.post(`/Workflows/${detail.id}/statuses`, {
+      await api.post('/WorkflowStatuses', {
+        workflowId: detail.id,
         name: addStatusForm.name.trim(),
         description: addStatusForm.description.trim() || null,
-        insertAfterStatusId: addStatusForm.afterStatusId
-          ? Number(addStatusForm.afterStatusId)
-          : null,
+        sortOrder,
+        isInitial: false,
         isFinal: addStatusForm.isFinal,
       })
       setAddStatusOpen(false)
@@ -258,7 +274,8 @@ export default function WorkflowsPage() {
     setPending(true)
     setFormError('')
     try {
-      await api.put(`/Workflows/${detail.id}/statuses/${renameStatusTarget.id}`, {
+      // Роут — в WorkflowStatusesController, без workflowId в пути
+      await api.put(`/WorkflowStatuses/${renameStatusTarget.id}`, {
         name: renameStatusForm.name.trim(),
         description: renameStatusForm.description.trim() || null,
       })
@@ -543,14 +560,26 @@ export default function WorkflowsPage() {
                 <span className="field-label">Вставить после этапа</span>
                 <select
                   value={addStatusForm.afterStatusId}
-                  onChange={(e) =>
-                    setAddStatusForm((f) => ({ ...f, afterStatusId: e.target.value }))
-                  }
+                  onChange={(e) => {
+                    const afterId = e.target.value
+                    const after = afterId
+                      ? statuses.find((s) => s.id === Number(afterId))
+                      : null
+                    setAddStatusForm((f) => ({
+                      ...f,
+                      afterStatusId: afterId,
+                      // Вставка после финального означает, что новый этап
+                      // и есть новое завершение цепочки — флаг ставим
+                      // принудительно, иначе в workflow не останется
+                      // финального статуса.
+                      isFinal: after?.isFinal ? true : f.isFinal,
+                    }))
+                  }}
                 >
                   <option value="">В конец</option>
                   {statuses.map((s) => (
                     <option key={s.id} value={String(s.id)}>
-                      Шаг {s.sortOrder} «{s.name}»
+                      Шаг {s.sortOrder} «{s.name}»{s.isFinal ? ' (финальный)' : ''}
                     </option>
                   ))}
                 </select>
@@ -559,6 +588,12 @@ export default function WorkflowsPage() {
                 <input
                   type="checkbox"
                   checked={addStatusForm.isFinal}
+                  disabled={
+                    addStatusForm.isFinal &&
+                    statuses.some(
+                      (s) => s.id === Number(addStatusForm.afterStatusId) && s.isFinal,
+                    )
+                  }
                   onChange={(e) =>
                     setAddStatusForm((f) => ({ ...f, isFinal: e.target.checked }))
                   }
