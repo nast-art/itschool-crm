@@ -111,9 +111,31 @@ services:
     networks:
       - crm-network
 
+  # ===== Caddy: HTTPS-терминация (сертификат Let's Encrypt — автоматически).
+  # ДОМЕН прописан в Caddyfile. Порт 80 ОБЯЗАТЕЛЕН: через него Caddy
+  # подтверждает владение доменом и продлевает сертификат. =====
+  caddy:
+    image: caddy:2
+    container_name: itschoolcrm-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
+      - api
+    networks:
+      - crm-network
+
 volumes:
   pgdata:
   keydb_data:
+  caddy_data:
+  caddy_config:
 
 networks:
   crm-network:

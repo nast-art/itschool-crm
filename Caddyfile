@@ -1,0 +1,4 @@
+https://itschoolcrm.duckdns.org
+
+reverse_proxy /api/* api:8080
+reverse_proxy frontend:80
