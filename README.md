@@ -12,9 +12,9 @@ CRM-система контроля взаимодействия ИТ Школы
 | Backend | ASP.NET Core (.NET 10), EF Core 10, Npgsql |
 | Frontend | React 18 + Vite, React Router |
 | База данных | PostgreSQL 16 |
-| Кэш | KeyDB 6.3 (Redis-совместимый), cache-aside + версионированные ключи |
+| Кэш | KeyDB (Redis-совместимый), cache-aside + версионированные ключи |
 | Хранилище вложений | S3-совместимое (Yandex Object Storage); слой `IFileStorage` позволяет заменить на MinIO/диск одной строкой |
-| Авторизация | Keycloak 24 (JWT, роли user / manager / admin) |
+| Авторизация | Keycloak 26.7 (JWT, роли user / manager / admin) |
 | Отчёты | NPOI (xls/xlsx), QuestPDF (pdf), System.Text.Json (json) |
 | Нагрузочное тестирование | k6 (скрипты в `loadtest/`), коллекция Postman `jstest.json` для ручных прогонов |
 
@@ -27,6 +27,8 @@ git clone https://github.com/nast-art/itschool-crm.git && cd itschool-crm
 cp .env.example .env
 #   впишите: DB_PASSWORD, KEYCLOAK_ADMIN_CLIENT_SECRET,
 #   S3_ACCESS_KEY / S3_SECRET_KEY
+#   ВАЖНО: KEYCLOAK_ADMIN_CLIENT_SECRET должен совпадать с secret клиента
+#   itschool-crm-admin в keycloak/itschool-realm.json
 
 # 2. Сборка и запуск всех сервисов (API, фронт, PostgreSQL, Keycloak, KeyDB)
 docker compose up -d --build
@@ -37,6 +39,8 @@ docker compose up -d --build
 &gt; **Для разработки** удобнее поднимать только инфраструктуру
 &gt; (`docker compose up -d postgres keycloak keydb`) и запускать
 &gt; backend/frontend с хоста — горячая пересборка и отладка в IDE.
+&gt; Окружение API в Docker намеренно `Development`, чтобы Swagger
+&gt; был доступен на демо-контуре.
 
 ## Учётные записи (демо-контур)
 
@@ -68,6 +72,29 @@ realm `itschool` → Users → Role mapping).
 - `Cache` — TTL каталогов (600 с), взаимодействий (300 с), статистики (60 с);
 - `Storage:S3` — бакет, эндпоинт `https://storage.yandexcloud.net`, регион
   `ru-central1`, `ForcePathStyle: false`.
+
+## Импорт каталога вузов (Excel)
+
+Кнопка «Импорт» на странице «Вузы» (роль admin) загружает xls/xlsx через
+`POST /api/Imports/excel` (multipart: `file` + `mapping` — маппинг
+«колонка Excel → поле» подставляется фронтом автоматически).
+
+Поведение импорта:
+
+- вузы, направления, продукты, договоры, лицензии и контакты создаются
+  «под ключ»: существующие сущности находятся по имени и обновляются,
+  дубликаты не плодятся;
+- для каждого вуза создаётся взаимодействие (первый активный workflow,
+  начальный статус), поэтому импортированные вузы сразу видны в таблице
+  «Вузы» и доступны в поиске верхней панели — без перезагрузки страницы;
+- после импорта кэш справочников и взаимодействий сбрасывается
+  автоматически;
+- повторный импорт того же файла не дублирует вузы и взаимодействия,
+  но добавит ещё одну копию лицензий — файлы импортируются один раз.
+
+Шаблон файла для заполнения (с листом-инструкцией) —
+`docs/templates/шаблон_импорта_каталога_вузов.xlsx`. Обязательна только
+колонка «Название ВУЗа»; заголовки первой строки не переименовывать.
 
 ## Проверка работоспособности
 
@@ -111,6 +138,8 @@ frontend/ITSchoolCRMWEB/   React SPA (страницы, api/, компонент
 db/                        Скрипты PostgreSQL (crm-db.sql: схема + seed-данные)
 keycloak/                  Экспорт realm (автоимпорт при старте контейнера)
 loadtest/                  Скрипты нагрузочного тестирования k6
+docs/                      Документация к защите и шаблоны
+docs/templates/            Шаблон xlsx для импорта каталога вузов
 jstest.json                Коллекция Postman (ручные прогоны, демо кэша)
 docker-compose.yml         PostgreSQL + Keycloak + KeyDB + API + фронт
 .env.example               Образец файла секретов (скопировать в .env)
@@ -123,4 +152,5 @@ docker-compose.yml         PostgreSQL + Keycloak + KeyDB + API + фронт
 - встроенная документация: раздел «Документация» в боковом меню UI
   (руководство пользователя, руководство администратора, архитектура,
   коды ошибок);
-- сопроводительная документация к защите: `docs/Сопроводительная_документация_полная.docx`.
+- сопроводительная документация к защите:
+  `docs/Сопроводительная_документация_полная.docx`.
