@@ -20,7 +20,7 @@ public sealed class KeycloakOptions
     public const string SectionName = "Keycloak";
 
     /// <summary>Базовый URL Keycloak.</summary>
-    public string BaseUrl { get; set; } = "http://localhost:8080";
+public string Url { get; set; } = "http://localhost:8080";
 
     /// <summary>Realm CRM.</summary>
     public string Realm { get; set; } = "itschool";
@@ -84,7 +84,7 @@ public sealed class KeycloakAdminClient : IKeycloakAdminClient
         _opt = options.Value;
         _logger = logger;
         _http = http;
-        _http.BaseAddress = new Uri(_opt.BaseUrl.TrimEnd('/') + "/");
+    _http.BaseAddress = new Uri(_opt.Url.TrimEnd('/') + "/");
     }
 
     /// <inheritdoc />
