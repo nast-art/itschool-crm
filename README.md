@@ -48,6 +48,7 @@ docker compose up -d --build
 |---|---|---|---|
 | Администратор платформы | admin@example.com | 12345 | admin |
 | Обычный пользователь | ivanovgrigori@example.net | 123456789 | user |
+| Руководитель | manager1@example.com | 123 | manager |
 | Консоль Keycloak | admin | admin | — (управление realm) |
 
 Пользователи с ролями user заводятся через регистрацию в интерфейсе
