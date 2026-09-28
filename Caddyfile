@@ -1,4 +1,4 @@
- https://itschoolcrm.duckdns.org {
+https://itschoolcrm.duckdns.org {
 reverse_proxy frontend:80
 }
 
