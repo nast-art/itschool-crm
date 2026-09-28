@@ -44,12 +44,12 @@ docker compose up -d --build
 
 ## Учётные записи (демо-контур)
 
-| Кто | Логин | Пароль | Роль |
+| Где | Логин | Пароль | Роль |
 |---|---|---|---|
-| Администратор платформы | admin@example.com | 12345 | admin |
-| Обычный пользователь | ivanovgrigori@example.net | 123456789 | user |
-| Руководитель | manager1@example.com | 123 | manager |
-| Консоль Keycloak | admin | admin | — (управление realm) |
+| Локальная разработка (`http://localhost:5173`) | admin@example.com | 12345 | admin |
+| Демо-сервер (`https://itschoolcrm.duckdns.org`) | admin@example.com | NewAdminPassword28092026 | admin |
+| Обычный пользователь (оба контура) | ivanovgrigori@example.net | 123456789 | user |
+| Консоль Keycloak (`http://<сервер>:8080`, admin/admin) | admin | admin | — |
 
 Пользователи с ролями user заводятся через регистрацию в интерфейсе
 (роль `user` назначается автоматически; manager/admin — через консоль Keycloak:
