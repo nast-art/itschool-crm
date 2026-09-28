@@ -6,8 +6,6 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
       POSTGRES_DB: it_school_crm_db
-    ports:
-      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./db:/docker-entrypoint-initdb.d:ro
@@ -26,8 +24,8 @@ services:
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
-    ports:
-      - "8080:8080"
+    expose:
+      - "8080"
     volumes:
       - ./keycloak/itschool-realm.json:/opt/keycloak/data/import/itschool-realm.json
     depends_on:
@@ -46,8 +44,6 @@ services:
       --save 60 1
       --maxmemory 256mb
       --maxmemory-policy allkeys-lru
-    ports:
-      - "6379:6379"
     volumes:
       - keydb_data:/data
     networks:
@@ -92,8 +88,8 @@ services:
       - Storage__S3__AccessKey=${S3_ACCESS_KEY}
       - Storage__S3__SecretKey=${S3_SECRET_KEY}
       - Storage__S3__ForcePathStyle=false
-    ports:
-      - "5026:8080"
+    expose:
+      - "8080"
     networks:
       - crm-network
 
@@ -106,8 +102,8 @@ services:
     restart: unless-stopped
     depends_on:
       - api
-    ports:
-      - "5173:80"
+    expose:
+      - "80"
     networks:
       - crm-network
 
@@ -117,9 +113,6 @@ services:
   caddy:
     image: caddy:2
     container_name: itschoolcrm-caddy
-    dns:
-      - 1.1.1.1
-      - 8.8.8.8
     restart: unless-stopped
     ports:
       - "80:80"
