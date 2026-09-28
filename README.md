@@ -46,8 +46,9 @@ docker compose up -d --build
 
 | Где | Логин | Пароль | Роль |
 |---|---|---|---|
-| Локальная разработка (`http://localhost:5173`) | admin@example.com | 12345 | admin |
-| Демо-сервер (`https://itschoolcrm.duckdns.org`) | admin@example.com | NewAdminPassword28092026 | admin |
+| Локальная разработка админ (`http://localhost:5173`) | admin@example.com | 12345 | admin |
+| Демо-сервер админ (`https://itschoolcrm.duckdns.org`) | admin@example.com | NewAdminPassword28092026 | admin |
+| Руководитель (оба контура) | manager1@example.com | 123 | manager |
 | Обычный пользователь (оба контура) | ivanovgrigori@example.net | 123456789 | user |
 | Консоль Keycloak (`http://<сервер>:8080`, admin/admin) | admin | admin | — |
 
